@@ -1,6 +1,6 @@
 import os.path
 import sqlite3
-from models.Airport import Airport
+from .models.Airport import Airport
 
 AIRPORT_DB = 'global_airports_sqlite.db'
 
