@@ -1,8 +1,8 @@
 import requests
 import json
-from utils import *
-from response import *
-from constants import *
+from .utils import *
+from .response import *
+from .constants import *
 
 class RawVantageApi:
     dateFormat = '%Y-%m-%dT%H:%I:%S.%fZ'

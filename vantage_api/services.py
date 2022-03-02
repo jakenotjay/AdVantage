@@ -1,10 +1,10 @@
 
 import os.path
 import time
-from utils import *
-from response import *
-from constants import *
-from api import RawVantageApi
+from .utils import *
+from .response import *
+from .constants import *
+from .api import RawVantageApi
 
 class VantageServiceApi(RawVantageApi):
 
