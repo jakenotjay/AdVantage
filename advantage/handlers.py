@@ -49,12 +49,7 @@ class YoloProcessor(PipelineHandler):
         self.model = DetectMultiBackend(weights, device=self.device, dnn=False)
 
     def handle(self, task: VideoProcessingFrame, next):
-        im = torch.from_numpy(task.frame).to(self.device)
-        #im = im.float()
-        #im /= 255  # 0 - 255 to 0.0 - 1.0
-        #if len(im.shape) == 3:
-        #    im = im[None]  # expand for batch dim
-        results = self.model(im)
+        results = self.model(task.frame)
         print(results)
         #task.put('yolo', 'test') 
         #print(task.get('yolo').results())
