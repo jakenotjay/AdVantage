@@ -1,2 +1,2 @@
 # AdVantage
-git clone this repository then run main.ipynb
+git clone this repository then run main.py
