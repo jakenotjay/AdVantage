@@ -48,6 +48,23 @@ class VideoWriter(PipelineHandler):
             self.video.release()
         return self    
 
+class VideoPredictionVisulisation(PipelineHandler):
+    colour = None
+    size = 1
+    def __init__(self,colour=(255, 0, 0), size= 2) -> None:
+        super().__init__()
+        self.colour = colour
+        self.size = size
+
+    def handle(self, task: VideoProcessingFrame, next):
+       if task.has('output_frame') and task.has('predictions'):
+            output_frame = task.get('output_frame')
+            for prediction in task.get('predictions'):
+               box = prediction.getBox()
+               cv2.rectangle(output_frame, (box[0],box[1]),(box[2],box[3]), self.colour, self.size)
+            task.put('output_frame', output_frame)
+       return next(task)
+
 
 class YoloProcessor(PipelineHandler):
     model = None
@@ -104,13 +121,13 @@ class YoloProcessor(PipelineHandler):
         predictions = []
         # Process predictions
         for i, det in enumerate(pred):  # per image
-            gn = torch.tensor(task.frame.shape)[[1, 0, 1, 0]]  # normalization gain whwh
+            #gn = torch.tensor(task.frame.shape)[[1, 0, 1, 0]]  # normalization gain whwh
             det[:, :4] = scale_coords(img.shape[2:], det[:, :4], task.frame.shape).round()
             for *xyxy, conf, cls in reversed(det):
                 c = int(cls)  # integer class
                 label = model.names[c]
                 prediction = Prediction(label, conf.item(), xyxy[0].item(), xyxy[1].item(), xyxy[2].item(), xyxy[3].item())
                 predictions.append(prediction)
-        print(predictions)
+
         task.put('predictions', predictions)       
         return next(task)  

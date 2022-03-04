@@ -24,11 +24,11 @@ class Prediction:
     def getCenter(self):
         x = self.x1 + ((self.x2 - self.x1) / 2 )
         y = self.y1 + ((self.y2 - self.y1) / 2 )
-        return [x,y]
+        return [int(x),int(y)]
 
     def getBox(self):
-        return [self.x1, self.y1, self.x2, self.y2]  
-        
+        return [int(self.x1), int(self.y1), int(self.x2), int(self.y2)]  
+
 class ProcessedVideo:
     frames = None
     def __init__(self) -> None:
