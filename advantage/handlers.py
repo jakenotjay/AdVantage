@@ -51,10 +51,27 @@ class VideoWriter(PipelineHandler):
 class VideoPredictionVisulisation(PipelineHandler):
     colour = None
     size = 1
-    def __init__(self,colour=(255, 0, 0), size= 2) -> None:
+    font = cv2.FONT_HERSHEY_SIMPLEX,
+    fontScale = 1,
+    fontColour = (0, 0, 255),
+    fontThickness = 2
+
+    def __init__(
+        self,
+        colour=(255, 0, 0),
+        size= 2,
+        font = cv2.FONT_HERSHEY_SIMPLEX,
+        fontScale = 1,
+        fontColour = (0, 0, 255),
+        fontThickness = 2
+    ) -> None:
         super().__init__()
         self.colour = colour
         self.size = size
+        self.font = font
+        self.fontScale = fontScale
+        self.fontColour = fontColour
+        self.fontThickness = fontThickness
 
     def handle(self, task: VideoProcessingFrame, next):
        if task.has('output_frame') and task.has('predictions'):
@@ -62,8 +79,22 @@ class VideoPredictionVisulisation(PipelineHandler):
             for prediction in task.get('predictions'):
                box = prediction.getBox()
                cv2.rectangle(output_frame, (box[0],box[1]),(box[2],box[3]), self.colour, self.size)
+               self.printText(output_frame, prediction.getLabel() , (box[2] - 50,box[3] + 50))
+               self.printText(output_frame, str(prediction.getScore()) , (box[2] - 100,box[3] + 100))
             task.put('output_frame', output_frame)
        return next(task)
+
+    def printText(self,frame, text, position):
+        cv2.putText(
+            frame, 
+            text, 
+            position, 
+            self.font, 
+            self.fontScale, 
+            self.fontColour, 
+            self.fontThickness, 
+            cv2.LINE_AA
+        ) 
 
 
 class YoloProcessor(PipelineHandler):
@@ -72,7 +103,7 @@ class YoloProcessor(PipelineHandler):
     half = None
     imgz = None
     stride = 0
-    conf_thres=0.7  # confidence threshold
+    conf_thres=0.5  # confidence threshold
     iou_thres=0.45  # NMS IOU threshold
     max_det=1000  # maximum detections per image
     classes=None  # filter by class: --class 0, or --class 0 2 3
@@ -80,14 +111,15 @@ class YoloProcessor(PipelineHandler):
     def __init__(
         self, 
         weights,
-        imgz = None,
+        imgz = (640, 640),
         stride = 32, 
         device='',
-        conf_thres=0.25,  # confidence threshold
+        conf_thres=0.6,  # confidence threshold
         iou_thres=0.45,  # NMS IOU threshold
         max_det=1000,  # maximum detections per image
         classes=None,  # filter by class: --class 0, or --class 0 2 3
         agnostic_nms=False,  # class-agnostic NMS
+        half=False,  # use FP16 half-precision inference
     ) -> None:
         super().__init__()
         self.device = device = select_device(device)
@@ -99,6 +131,14 @@ class YoloProcessor(PipelineHandler):
         self.max_det = max_det
         self.classes = classes
         self.agnostic_nms = agnostic_nms
+        self.half = half
+
+        # Half
+        self.half &= (self.model.pt or self.model.jit or self.model.onnx or self.model.engine) and device.type != 'cpu'  # FP16 supported on limited backends with CUDA
+        if self.model.pt or self.model.jit:
+            self.model.model.half() if self.half else self.model.model.float()
+
+        self.model.warmup(imgsz=(1 if self.model.pt else 1, 3, *imgz), half=self.half)  # warmup
             
     def handle(self, task: VideoProcessingFrame, next):
         imgz = self.imgz
