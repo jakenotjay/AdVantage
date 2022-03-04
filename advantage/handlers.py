@@ -151,8 +151,10 @@ class YoloProcessor(PipelineHandler):
 
             self.model.warmup(imgsz=(1 if self.model.pt else 1, 3, *imgz), half=self.half)  # warmup
        
-
-        img = letterbox(task.frame, imgz, stride=self.stride, auto=True)[0]
+        if imgz[0] != task.frame_width and imgz[1] != task.frame_height:
+            img = letterbox(task.frame, imgz, stride=self.stride, auto=True)[0]
+        else:
+            img = task.frame.copy()    
 
         img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
         img = np.ascontiguousarray(img)
