@@ -31,7 +31,7 @@ class FrameBuffer(PipelineHandler):
         self.buffer_size = buffer_size
 
     def handle(self, task: VideoProcessingFrame, next):
-        self.buffer.append(task.frame)
+        self.buffer.append(task)
         if len(self.buffer) > self.buffer_size: 
             self.buffer = self.buffer[-(self.buffer_size):]
         task.put('frame_buffer', self.buffer)
