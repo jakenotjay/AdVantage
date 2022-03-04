@@ -56,7 +56,7 @@ class YoloProcessor(PipelineHandler):
     def __init__(self, weights, device='') -> None:
         super().__init__()
         self.device = device = select_device(device)
-        self.model = model = DetectMultiBackend(weights, device=self.device, dnn=False)
+        self.model = DetectMultiBackend(weights, device=self.device, dnn=False)
             
     def handle(self, task: VideoProcessingFrame, next):
         img = letterbox(task.frame, task.frame_width, stride=32, auto=True)[0]

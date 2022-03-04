@@ -15,7 +15,7 @@ class PipelineObject:
         return self.data[key]        
 
     def all(self):
-        return self.data   
+        return self.data     
 
 class PipelineHandler:
     def handle(self, task: PipelineObject, next):
