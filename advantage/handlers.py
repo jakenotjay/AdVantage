@@ -53,13 +53,21 @@ class YoloProcessor(PipelineHandler):
     model = None
     device = None
     half = None
-    def __init__(self, weights, device='') -> None:
+    imgz = None
+    stride = 0
+    def __init__(self, weights,imgz = None,stride = 32, device='') -> None:
         super().__init__()
         self.device = device = select_device(device)
         self.model = DetectMultiBackend(weights, device=self.device, dnn=False)
+        self.imgz = imgz
+        self.stride = stride
             
     def handle(self, task: VideoProcessingFrame, next):
-        img = letterbox(task.frame, task.frame_width, stride=32, auto=True)[0]
+        imgz = self.imgz
+        if imgz == None:
+            imgz = task.frame_width
+
+        img = letterbox(task.frame, imgz, stride=self.stride, auto=True)[0]
 
         img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
         img = np.ascontiguousarray(img)
