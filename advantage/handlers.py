@@ -14,8 +14,13 @@ from yolov5.utils.augmentations import letterbox
 class Verbose(PipelineHandler):
     def handle(self, task: VideoProcessingFrame, next):
         print('Processing Frame: '+str(task.frame_id))
+
         handledTask = next(task)
-        #print('this happens after all tasks')
+
+        if task.has('predictions'):
+            for prediction in task.get('predictions'):
+                print('\t '+prediction.getLabel()+ ' Score: '+str(prediction.getScore())+' Box:'+str(prediction.getBox()))
+
         return handledTask
 
 class VideoAttachGeoData(PipelineHandler):
