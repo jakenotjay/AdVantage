@@ -5,9 +5,9 @@ from vantage_api.geometry import VantageGeometry
 import torch
 import numpy as np
 from yolov5.models.common import DetectMultiBackend
-from yolov5.utils.torch_utils import select_device, time_sync
-from yolov5.utils.general import (LOGGER, check_file, check_img_size, check_imshow, check_requirements, colorstr,
-                           increment_path, non_max_suppression, print_args, scale_coords, strip_optimizer, xyxy2xywh)
+from yolov5.utils.torch_utils import select_device
+from yolov5.utils.general import (non_max_suppression, scale_coords)
+from .lib import Prediction
 
 from yolov5.utils.augmentations import letterbox                           
 
@@ -55,15 +55,37 @@ class YoloProcessor(PipelineHandler):
     half = None
     imgz = None
     stride = 0
-    def __init__(self, weights,imgz = None,stride = 32, device='') -> None:
+    conf_thres=0.7  # confidence threshold
+    iou_thres=0.45  # NMS IOU threshold
+    max_det=1000  # maximum detections per image
+    classes=None  # filter by class: --class 0, or --class 0 2 3
+    agnostic_nms=False  # class-agnostic NMS
+    def __init__(
+        self, 
+        weights,
+        imgz = None,
+        stride = 32, 
+        device='',
+        conf_thres=0.25,  # confidence threshold
+        iou_thres=0.45,  # NMS IOU threshold
+        max_det=1000,  # maximum detections per image
+        classes=None,  # filter by class: --class 0, or --class 0 2 3
+        agnostic_nms=False,  # class-agnostic NMS
+    ) -> None:
         super().__init__()
         self.device = device = select_device(device)
         self.model = DetectMultiBackend(weights, device=self.device, dnn=False)
         self.imgz = imgz
         self.stride = stride
+        self.conf_thres = conf_thres
+        self.iou_thres = iou_thres
+        self.max_det = max_det
+        self.classes = classes
+        self.agnostic_nms = agnostic_nms
             
     def handle(self, task: VideoProcessingFrame, next):
         imgz = self.imgz
+        model = self.model
         if imgz == None:
             imgz = task.frame_width
 
@@ -77,5 +99,18 @@ class YoloProcessor(PipelineHandler):
         img = img[None]
 
         pred = self.model(img)
-        print(pred)
+        pred = non_max_suppression(pred, self.conf_thres, self.iou_thres, self.classes, self.agnostic_nms, max_det=self.max_det)
+
+        predictions = []
+        # Process predictions
+        for i, det in enumerate(pred):  # per image
+            gn = torch.tensor(task.frame.shape)[[1, 0, 1, 0]]  # normalization gain whwh
+            det[:, :4] = scale_coords(img.shape[2:], det[:, :4], task.frame.shape).round()
+            for *xyxy, conf, cls in reversed(det):
+                c = int(cls)  # integer class
+                label = model.names[c]
+                prediction = Prediction(label, conf.item(), xyxy[0].item(), xyxy[1].item(), xyxy[2].item(), xyxy[3].item())
+                predictions.append(prediction)
+        print(predictions)
+        task.put('predictions', predictions)       
         return next(task)  
