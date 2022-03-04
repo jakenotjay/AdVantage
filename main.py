@@ -14,7 +14,7 @@ videos = ['VX020001af','VX02000399','VX020003b5','VX020001c0','VX0200021f','VX02
 pipeline = app.pipeline_factory([
     Verbose(),
     VideoWriter('output/VX020001c0.mp4'),
-    YoloProcessor(os.path.join(cwd,'input/best.pt'),conf_thres=0.6), 
+    YoloProcessor(os.path.join(cwd,'input/best.pt'),conf_thres=0.8), 
     VideoPredictionVisulisation(),
     #VideoAttachGeoData('input/VX020001c0_geometry.xml'),
 ])
