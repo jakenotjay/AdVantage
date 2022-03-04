@@ -111,7 +111,7 @@ class YoloProcessor(PipelineHandler):
     def __init__(
         self, 
         weights,
-        imgz = (640, 640),
+        imgz = None,
         stride = 32, 
         device='',
         conf_thres=0.6,  # confidence threshold
@@ -132,19 +132,20 @@ class YoloProcessor(PipelineHandler):
         self.classes = classes
         self.agnostic_nms = agnostic_nms
         self.half = half
-
-        # Half
-        self.half &= (self.model.pt or self.model.jit or self.model.onnx or self.model.engine) and device.type != 'cpu'  # FP16 supported on limited backends with CUDA
-        if self.model.pt or self.model.jit:
-            self.model.model.half() if self.half else self.model.model.float()
-
-        self.model.warmup(imgsz=(1 if self.model.pt else 1, 3, *imgz), half=self.half)  # warmup
             
     def handle(self, task: VideoProcessingFrame, next):
+        if self.imgz == None:
+            self.imgz = (task.frame_width, task.frame_height)
         imgz = self.imgz
         model = self.model
-        if imgz == None:
-            imgz = task.frame_width
+        if task.frame_id == 0:
+            # Half
+            self.half &= (self.model.pt or self.model.jit or self.model.onnx or self.model.engine) and self.device.type != 'cpu'  # FP16 supported on limited backends with CUDA
+            if self.model.pt or self.model.jit:
+                self.model.model.half() if self.half else self.model.model.float()
+
+            self.model.warmup(imgsz=(1 if self.model.pt else 1, 3, *imgz), half=self.half)  # warmup
+       
 
         img = letterbox(task.frame, imgz, stride=self.stride, auto=True)[0]
 
