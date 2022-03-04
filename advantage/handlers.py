@@ -30,18 +30,22 @@ class VideoAttachGeoData(PipelineHandler):
 
 class VideoWriter(PipelineHandler):
     video = None
-    def __init__(self, outputFile, width, height, fps) -> None:
+    outputFile = None
+    def __init__(self, outputFile) -> None:
         super().__init__()
-        self.video = cv2.VideoWriter(outputFile, cv2.VideoWriter_fourcc(*'DIVX'), fps, (width, height))
+        self.outputFile = outputFile
 
     def handle(self, task: VideoProcessingFrame, next):
+        if self.video == None:
+            self.video = cv2.VideoWriter(self.outputFile, cv2.VideoWriter_fourcc(*'DIVX'), task.fps, (task.frame_width, task.frame_height))
+        task.put('output_frame', task.frame.copy())
         result = next(task)
-        self.video.write(result.frame)
-        print(self.video)
+        self.video.write(result.get('output_frame'))
         return result
 
     def release(self):
-        self.video.release()
+        if self.video != None:
+            self.video.release()
         return self    
 
 
@@ -49,13 +53,13 @@ class YoloProcessor(PipelineHandler):
     model = None
     device = None
     half = None
-    def __init__(self, weights, device='', imgsz=(3072, 3072)) -> None:
+    def __init__(self, weights, device='') -> None:
         super().__init__()
         self.device = device = select_device(device)
         self.model = model = DetectMultiBackend(weights, device=self.device, dnn=False)
             
     def handle(self, task: VideoProcessingFrame, next):
-        img = letterbox(task.frame, 640, stride=32, auto=True)[0]
+        img = letterbox(task.frame, task.frame_width, stride=32, auto=True)[0]
 
         img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
         img = np.ascontiguousarray(img)
