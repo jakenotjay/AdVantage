@@ -28,7 +28,7 @@ class RawVantageApi:
             'resultsPerPage': perPage,
             'catalogue': CATALOGUE,
             'remoteDataCollection_commercialData':DATA_COLLECTION,
-            'geometry': geometry
+            'geometry': geometry.toString()
         }
         if geometry.hasStartDate():
             queryParams['productStartDate'] = geometry.getStartDate().strftime(self.dateFormat)

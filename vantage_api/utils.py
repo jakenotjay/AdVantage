@@ -58,13 +58,24 @@ class GeoRequest:
     def append(self, point: GeoPoint):
         self.points.append(point)
         return self
+
+    def toTestString(self):
+        outputString = ''
+        idx = 0
+        for point in self.points:
+            if idx > 0:
+                outputString = outputString + "\n"
+            outputString = outputString + str(point.y)+','+str(point.x)+',red,marker'
+            idx = idx + 1
+        return outputString     
+
         
     def toString(self):
         outputString = 'POLYGON(('
         idx = 0
         for point in self.points:
             if idx > 0:
-                outputString = outputString + ', '
+                outputString = outputString + ','
             outputString = outputString + point.toString()
             idx = idx + 1
         outputString = outputString + '))'
