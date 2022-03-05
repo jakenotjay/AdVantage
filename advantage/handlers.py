@@ -30,36 +30,39 @@ class ObjectTracker(PipelineHandler):
         return result
 
 class RunwayDetector(PipelineHandler):
-
-    def __init__(self) -> None:
+    image_width = None
+    output_test_images = False
+    def __init__(self, image_width=None, output_test_images = False) -> None:
         super().__init__()
         self.lines = []
+        self.image_width = image_width
+        self.output_test_images = output_test_images
 
     def handle(self, task: VideoProcessingFrame, next):
 
-        resize_img_width = task.frame_width
-        runway_length_drop_percentage = 10
+        resize_img_width = self.image_width if self.image_width != None else task.frame_width
         img = task.frame.copy()
         scale = resize_img_width / img.shape[1]
         width = int(img.shape[1] * scale)
         height = int(img.shape[0] * scale)
         dim = (width, height)
         img = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
-
+        
         img_copy = img.copy()
         bin_img = self.convertImageToStandardisedBinary(img)
+        lines = self.findLinesInBinaryImage(bin_img, width)
+        img_copy = self.saveLinesToTask(task,img_copy, lines, width, height)
+        img_copy, bin_img = self.saveTestImages(task, img_copy, bin_img)
 
-        currentRunwayDropPercentage = runway_length_drop_percentage
-        currentRunwayMin = width - (width * (currentRunwayDropPercentage / 100))
-        lines = None
+        return next(task)   
 
-        while currentRunwayDropPercentage < 100:
-            lines = cv2.HoughLinesP(bin_img, 1, np.pi / 180, 150, None, currentRunwayMin, 5)
-            if lines is not None:
-                break  
-            currentRunwayDropPercentage += runway_length_drop_percentage
-            currentRunwayMin = width - (width * (currentRunwayDropPercentage / 100))
+    def saveTestImages(self, task, img, bin_img):
+        if self.output_test_images:
+            cv2.imwrite('output/frame_'+str(task.frame_id)+'_thresh.jpg', bin_img)
+            cv2.imwrite('output/frame_'+str(task.frame_id)+'.jpg', img)   
+        return img, bin_img    
 
+    def saveLinesToTask(self,task,img, lines, width, height):
         if lines is not None:
             outputLines = []
             lines = sorted(lines, key=self.getLineLength)
@@ -68,21 +71,33 @@ class RunwayDetector(PipelineHandler):
                 x1p = l[0] / width 
                 x2p = l[2] / width
                 y1p = l[1] / height
-                y2p = l[2] / height
+                y2p = l[3] / height
                 outputLines.append([
                     int(task.frame_width * x1p),
                     int(task.frame_height * y1p),
                     int(task.frame_width * x2p),
                     int(task.frame_height * y2p),
                 ])
-                cv2.line(img_copy, (l[0], l[1]), (l[2], l[3]), (0,0,255), 2, cv2.LINE_AA)  
+                if self.output_test_images:
+                    cv2.line(img, (l[0], l[1]), (l[2], l[3]), (0,0,255), 2, cv2.LINE_AA)  
 
             task.put('runways', outputLines)
+        return img    
 
-        cv2.imwrite('output/frame_'+str(task.frame_id)+'_thresh.jpg', bin_img)
-        cv2.imwrite('output/frame_'+str(task.frame_id)+'.jpg', img_copy)
+    def findLinesInBinaryImage(self, img, width):
+        runway_length_drop_percentage = 10
+        currentRunwayDropPercentage = runway_length_drop_percentage
+        currentRunwayMin = width - (width * (currentRunwayDropPercentage / 100))
+        lines = None
 
-        return next(task)   
+        while currentRunwayDropPercentage < 100:
+            lines = cv2.HoughLinesP(img, 1, np.pi / 180, 150, None, currentRunwayMin, 5)
+            if lines is not None:
+                break  
+            currentRunwayDropPercentage += runway_length_drop_percentage
+            currentRunwayMin = width - (width * (currentRunwayDropPercentage / 100))
+
+        return lines    
 
     def convertImageToStandardisedBinary(self, img):
         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)

@@ -7,9 +7,10 @@ from advantage.handlers import *
 
 app = AdVantage()
 cwd = os.path.dirname(os.path.abspath(__file__))
-filename = 'VX020001dc'
+#filename = 'VX020001dc'
 #filename = 'VX0200021f'
 #filename = 'VX020001c0'
+filename = 'VX020001c0_stable'
 
 
 pipeline = app.pipeline_factory([
@@ -27,7 +28,7 @@ pipeline = app.pipeline_factory([
     #    conf_thres=0.7 #only save predictions over % 0 to 1
     #), 
     ObjectTracker(),
-    RunwayDetector(),
+    RunwayDetector(image_width=640, output_test_images=True),
     VideoPredictionVisulisation(), # Applies details to video/image frames
 ])
 
