@@ -9,8 +9,8 @@ app = AdVantage()
 cwd = os.path.dirname(os.path.abspath(__file__))
 #filename = 'VX020001dc'
 #filename = 'VX0200021f'
-#filename = 'VX020001c0'
-filename = 'VX020001c0_stable'
+filename = 'VX020001c0'
+#filename = 'VX020001c0_stable'
 
 
 pipeline = app.pipeline_factory([

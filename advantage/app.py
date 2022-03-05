@@ -49,8 +49,7 @@ class AdVantage:
                     frameMap['predictions'].append(pred.toMap())
 
             if frame.has('frame_objects'):
-                # frameMap['objects'] = json.dumps(frame.get('frame_objects'))
-                print(frame.get('frame_objects'))
+                frameMap['objects'] = json.dumps(frame.get('frame_objects'))
 
             outputList.append(frameMap)
 
