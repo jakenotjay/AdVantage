@@ -10,7 +10,20 @@ from yolov5.utils.general import (non_max_suppression, scale_coords)
 from .lib import Prediction
 import os
 
-from yolov5.utils.augmentations import letterbox                           
+from yolov5.utils.augmentations import letterbox      
+
+
+class ObjectTracker(PipelineHandler):
+    trackedObject = []
+
+    def __init__(self) -> None:
+        super().__init__()
+        #any setup options here
+
+    def handle(self, task: VideoProcessingFrame, next):
+        #processing of frame here (task.frame). must always return next(task)
+        return next(task)  
+
 
 class Verbose(PipelineHandler):
     def handle(self, task: VideoProcessingFrame, next):
@@ -28,7 +41,7 @@ class PipelineKiller(PipelineHandler):
     frames_to_process = 0
     def __init__(self, frames_to_process = 1) -> None:
         super().__init__()
-        self.frames_to_process = frames_to_process
+        self.frames_to_process = frames_to_process - 1
 
     def handle(self, task: VideoProcessingFrame, next):
         if self.frames_to_process > 0 and task.frame_id >= self.frames_to_process:

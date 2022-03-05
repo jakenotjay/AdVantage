@@ -3,6 +3,7 @@ from .pipeline import Pipeline
 from .sendables import VideoProcessingFrame
 from .lib import ProcessedVideo
 from .pipeline import Pipeline
+import json
 
 class AdVantage:
 
@@ -30,4 +31,21 @@ class AdVantage:
                 break
           
         return processedVideo
+
+    def save_output_to_json(self, processed_video: ProcessedVideo, output_file):
+        outputList = []
+        for frame in processed_video.getFrames():
+            frameMap = {
+                'frame_id': frame.frame_id
+            }
+            if frame.has('predictions'):
+                frameMap['predictions'] = []
+                for pred in frame.get('predictions'):
+                    frameMap['predictions'].append(pred.toMap())
+
+            outputList.append(frameMap)
+
+        open(output_file,"w").write(json.dumps(outputList))    
+
+            
 

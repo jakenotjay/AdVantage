@@ -29,6 +29,13 @@ class Prediction:
     def getBox(self):
         return [int(self.x1), int(self.y1), int(self.x2), int(self.y2)]  
 
+    def toMap(self):
+        return {
+            'label':self.getLabel(),
+            'box':self.getBox(),
+            'score':self.getScore()
+        }    
+
 class ProcessedVideo:
     frames = None
     def __init__(self) -> None:
@@ -37,6 +44,9 @@ class ProcessedVideo:
     def append(self, frame):
         self.frames.append(frame)
         return self    
+
+    def getFrames(self):
+        return self.frames    
 
     def all(self):
         data = []
