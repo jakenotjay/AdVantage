@@ -195,6 +195,7 @@ class VideoPredictionVisulisation(PipelineHandler):
     fontScale = 1,
     fontColour = (0, 0, 255),
     fontThickness = 2
+    include = []
 
     def __init__(
         self,
@@ -203,7 +204,8 @@ class VideoPredictionVisulisation(PipelineHandler):
         font = cv2.FONT_HERSHEY_SIMPLEX,
         fontScale = 1,
         fontColour = (0, 0, 255),
-        fontThickness = 2
+        fontThickness = 2,
+        include = []
     ) -> None:
         super().__init__()
         self.colour = colour
@@ -212,17 +214,18 @@ class VideoPredictionVisulisation(PipelineHandler):
         self.fontScale = fontScale
         self.fontColour = fontColour
         self.fontThickness = fontThickness
+        self.include = include
 
     def handle(self, task: VideoProcessingFrame, next):
         if task.has('output_frame'):
             output_frame = task.get('output_frame')
-            if task.has('predictions'):
+            if self.processParam('predictions'):
                 for prediction in task.get('predictions'):
                     box = prediction.getBox()
                     cv2.rectangle(output_frame, (box[0],box[1]),(box[2],box[3]), self.colour, self.size)
                     self.printText(output_frame, prediction.getLabel() , (box[2] - 50,box[3] + 50))
                     self.printText(output_frame, str(prediction.getScore()) , (box[2] - 100,box[3] + 100))
-            if task.has('runways'):
+            if self.processParam('runways'):
                 lines = task.get('runways')
                 if lines is not None:
                     for i in range(0, len(lines)):
@@ -230,6 +233,9 @@ class VideoPredictionVisulisation(PipelineHandler):
                         cv2.line(output_frame, (l[0], l[1]), (l[2], l[3]), (0,0,255), 2, cv2.LINE_AA)   
             task.put('output_frame', output_frame)
         return next(task)
+
+    def processParam(self,task: VideoProcessingFrame, param):
+        return len(self.include) == 0 or param in self.include and task.has(param) 
 
     def printText(self,frame, text, position):
         cv2.putText(
