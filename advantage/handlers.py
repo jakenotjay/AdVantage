@@ -219,13 +219,13 @@ class VideoPredictionVisulisation(PipelineHandler):
     def handle(self, task: VideoProcessingFrame, next):
         if task.has('output_frame'):
             output_frame = task.get('output_frame')
-            if self.processParam('predictions'):
+            if self.processParam(task, 'predictions'):
                 for prediction in task.get('predictions'):
                     box = prediction.getBox()
                     cv2.rectangle(output_frame, (box[0],box[1]),(box[2],box[3]), self.colour, self.size)
                     self.printText(output_frame, prediction.getLabel() , (box[2] - 50,box[3] + 50))
                     self.printText(output_frame, str(prediction.getScore()) , (box[2] - 100,box[3] + 100))
-            if self.processParam('runways'):
+            if self.processParam(task, 'runways'):
                 lines = task.get('runways')
                 if lines is not None:
                     for i in range(0, len(lines)):
@@ -235,7 +235,7 @@ class VideoPredictionVisulisation(PipelineHandler):
         return next(task)
 
     def processParam(self,task: VideoProcessingFrame, param):
-        return len(self.include) == 0 or param in self.include and task.has(param) 
+        return (len(self.include) == 0 or param in self.include) and task.has(param)
 
     def printText(self,frame, text, position):
         cv2.putText(
