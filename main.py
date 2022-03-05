@@ -23,12 +23,13 @@ pipeline = app.pipeline_factory([
         output_video=False, #Output the video
         image_frame_output_dir=os.path.join(cwd,'output') #Outputs Image of each frame
     ),
-    #YoloProcessor(
-    #    os.path.join(cwd,'input/exp3/best.pt'), #weights file. must be absolute
-    #    conf_thres=0.7 #only save predictions over % 0 to 1
-    #), 
+    YoloProcessor(
+        os.path.join(cwd,'input/exp3/best.pt'), #weights file. must be absolute
+        conf_thres=0.7 #only save predictions over % 0 to 1
+    ), 
     ObjectTracker(),
-    VideoPredictionVisualisation(), # Applies details to video/image frames
+    RunwayDetector(),
+    VideoPredictionVisualisation(include=['runways','frame_objects']), # Applies details to video/image frames
 ])
 
 result = app.process_video(os.path.join(cwd,'input',filename+'.mp4'), pipeline)
