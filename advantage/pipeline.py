@@ -21,6 +21,9 @@ class PipelineHandler:
     def handle(self, task: PipelineObject, next):
         return next(task)
 
+    def after(self, sendable):
+        pass
+
 
 class Pipeline:
     handlers = []

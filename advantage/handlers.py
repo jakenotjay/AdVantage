@@ -8,9 +8,9 @@ import numpy as np
 from yolov5.models.common import DetectMultiBackend
 from yolov5.utils.torch_utils import select_device
 from yolov5.utils.general import (non_max_suppression, scale_coords)
-from .lib import Prediction
+from .lib import Prediction, ProcessedVideo
 import os
-
+import math
 from yolov5.utils.augmentations import letterbox      
 
 
@@ -149,16 +149,112 @@ class ObjectTracker(PipelineHandler):
         #any processing after the pipeline can be done here
         return result
 
-class RunwayDetector(PipelineHandler):
-
-    def __init__(self) -> None:
+class CreateAverageImage(PipelineHandler):
+    def __init__(self,save_image_path) -> None:
         super().__init__()
-        #any setup options here
+        self.buffer = []
+        self.shape = None
+        self.save_image_path = save_image_path
+
+    #Called Per Frame
+    def handle(self, task: VideoProcessingFrame, next):
+        self.shape = task.frame.shape
+        self.buffer.append(task.frame)   
+        return next(task)   
+
+    #called at the end                
+    def after(self, processed: ProcessedVideo):
+        mean_frame = np.zeros(self.shape, dtype='float32')
+        for item in self.buffer:
+            mean_frame += item
+        mean_frame /= len(self.buffer)
+        avg = mean_frame.astype('uint8')
+        cv2.imwrite(self.save_image_path, avg)          
+
+class RunwayDetector(PipelineHandler):
+    image_width = None
+    output_test_images = False
+    def __init__(self, image_width=480, output_test_images = False) -> None:
+        super().__init__()
+        self.lines = []
+        self.image_width = image_width
+        self.output_test_images = output_test_images
 
     def handle(self, task: VideoProcessingFrame, next):
-        #processing of frame here (task.frame). must always return next(task)
-        return next(task) 
 
+        resize_img_width = self.image_width if self.image_width != None else task.frame_width
+        img = task.frame.copy()
+        scale = resize_img_width / img.shape[1]
+        width = int(img.shape[1] * scale)
+        height = int(img.shape[0] * scale)
+        dim = (width, height)
+        img = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
+        
+        img_copy = img.copy()
+        bin_img = self.convertImageToStandardisedBinary(img)
+        lines = self.findLinesInBinaryImage(bin_img, width)
+        img_copy = self.saveLinesToTask(task,img_copy, lines, width, height)
+        img_copy, bin_img = self.saveTestImages(task, img_copy, bin_img)
+
+        return next(task)   
+
+    def saveTestImages(self, task, img, bin_img):
+        if self.output_test_images:
+            cv2.imwrite('output/frame_'+str(task.frame_id)+'_thresh.jpg', bin_img)
+            cv2.imwrite('output/frame_'+str(task.frame_id)+'.jpg', img)   
+        return img, bin_img    
+
+    def saveLinesToTask(self,task,img, lines, width, height):
+        if lines is not None:
+            outputLines = []
+            lines = sorted(lines, key=self.getLineLength)
+            for i in range(0, len(lines)):
+                l = lines[i][0]
+                x1p = l[0] / width 
+                x2p = l[2] / width
+                y1p = l[1] / height
+                y2p = l[3] / height
+                outputLines.append([
+                    int(task.frame_width * x1p),
+                    int(task.frame_height * y1p),
+                    int(task.frame_width * x2p),
+                    int(task.frame_height * y2p),
+                ])
+                if self.output_test_images:
+                    cv2.line(img, (l[0], l[1]), (l[2], l[3]), (0,0,255), 2, cv2.LINE_AA)  
+
+            task.put('runways', outputLines)
+        return img    
+
+    def findLinesInBinaryImage(self, img, width):
+        runway_length_drop_percentage = 10
+        currentRunwayDropPercentage = runway_length_drop_percentage
+        currentRunwayMin = width - (width * (currentRunwayDropPercentage / 100))
+        lines = None
+
+        while currentRunwayDropPercentage < 100:
+            lines = cv2.HoughLinesP(img, 1, np.pi / 180, 150, None, currentRunwayMin, 5)
+            if lines is not None:
+                break  
+            currentRunwayDropPercentage += runway_length_drop_percentage
+            currentRunwayMin = width - (width * (currentRunwayDropPercentage / 100))
+
+        return lines    
+
+    def convertImageToStandardisedBinary(self, img):
+        img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        img_gray = cv2.bitwise_not(img_gray) #invert image
+        rect_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+        img_gray = cv2.dilate(img_gray, rect_kernel, iterations = 1)
+        thresh = cv2.adaptiveThreshold(img_gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY_INV,11,2)
+        return thresh
+        
+
+    def getLineLength(self, line):
+        l = line[0]
+        x = l[2] - l[0]
+        y = l[3] - l[1]
+        return math.sqrt(math.pow(x,2) * math.pow(y, 2))    
 
 class Verbose(PipelineHandler):
     def handle(self, task: VideoProcessingFrame, next):
@@ -176,7 +272,7 @@ class PipelineKiller(PipelineHandler):
     frames_to_process = 0
     def __init__(self, frames_to_process = 1) -> None:
         super().__init__()
-        self.frames_to_process = frames_to_process - 1
+        self.frames_to_process = frames_to_process
 
     def handle(self, task: VideoProcessingFrame, next):
         if self.frames_to_process > 0 and task.frame_id >= self.frames_to_process:
@@ -253,6 +349,7 @@ class VideoPredictionVisualisation(PipelineHandler):
     fontScale = 1,
     fontColour = (0, 0, 255),
     fontThickness = 2
+    include = []
 
     def __init__(
         self,
@@ -261,7 +358,8 @@ class VideoPredictionVisualisation(PipelineHandler):
         font = cv2.FONT_HERSHEY_SIMPLEX,
         fontScale = 1,
         fontColour = (0, 0, 255),
-        fontThickness = 2
+        fontThickness = 2,
+        include = []
     ) -> None:
         super().__init__()
         self.colour = colour
@@ -270,18 +368,35 @@ class VideoPredictionVisualisation(PipelineHandler):
         self.fontScale = fontScale
         self.fontColour = fontColour
         self.fontThickness = fontThickness
+        self.include = include
 
     def handle(self, task: VideoProcessingFrame, next):
-        if task.has('output_frame') and task.has('frame_objects'):
+        if task.has('output_frame'):
             output_frame = task.get('output_frame')
-            for object in task.get('frame_objects'):
-                centroid = object['centroid']
-                cv2.circle(output_frame, centroid, radius=5, color=self.colour, thickness=-1)
-                self.printText(output_frame, "Object ID: " + str(object['object_id']), (centroid[0]+10, centroid[1]))
-                self.printText(output_frame, "Velocity: " + str(round(object['world_velocity_magnitude'])), (centroid[0]+10, centroid[1] - 30))
-                self.printText(output_frame, "Bearing: " + str(round(object['frame_bearing'])), (centroid[0]+10, centroid[1] - 60))
+            if self.processParam(task, 'frame_objects'):
+                for object in task.get('frame_objects'):
+                    centroid = object['centroid']
+                    cv2.circle(output_frame, centroid, radius=5, color=self.colour, thickness=-1)
+                    self.printText(output_frame, "Object ID: " + str(object['object_id']), (centroid[0]+10, centroid[1]))
+                    self.printText(output_frame, "Velocity: " + str(round(object['world_velocity_magnitude'])), (centroid[0]+10, centroid[1] - 30))
+                    self.printText(output_frame, "Bearing: " + str(round(object['frame_bearing'])), (centroid[0]+10, centroid[1] - 60))
+            if self.processParam(task, 'predictions'):
+                for prediction in task.get('predictions'):
+                    box = prediction.getBox()
+                    cv2.rectangle(output_frame, (box[0],box[1]),(box[2],box[3]), self.colour, self.size)
+                    self.printText(output_frame, prediction.getLabel() , (box[2] - 50,box[3] + 50))
+                    self.printText(output_frame, str(prediction.getScore()) , (box[2] - 100,box[3] + 100))
+            if self.processParam(task, 'runways'):
+                lines = task.get('runways')
+                if lines is not None:
+                    for i in range(0, len(lines)):
+                        l = lines[i]
+                        cv2.line(output_frame, (l[0], l[1]), (l[2], l[3]), (0,0,255), 2, cv2.LINE_AA)   
             task.put('output_frame', output_frame)
         return next(task)
+
+    def processParam(self,task: VideoProcessingFrame, param):
+        return (len(self.include) == 0 or param in self.include) and task.has(param)
 
     def printText(self,frame, text, position):
         cv2.putText(

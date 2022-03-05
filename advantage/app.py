@@ -33,7 +33,8 @@ class AdVantage:
         
             if processedFrame.continue_frames == False:
                 break
-          
+        for task in pipeline.handlers:
+            task.after(processedVideo)
         return processedVideo
 
     def save_output_to_json(self, processed_video: ProcessedVideo, output_file):
