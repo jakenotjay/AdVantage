@@ -391,7 +391,7 @@ class VideoPredictionVisualisation(PipelineHandler):
                 if lines is not None:
                     for i in range(0, len(lines)):
                         l = lines[i]
-                        cv2.line(output_frame, (l[0], l[1]), (l[2], l[3]), (0,0,255), 2, cv2.LINE_AA)   
+                        cv2.line(output_frame, (l[0], l[1]), (l[2], l[3]), (255,0,0), 2, cv2.LINE_AA)   
             task.put('output_frame', output_frame)
         return next(task)
 
