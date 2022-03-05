@@ -1,6 +1,4 @@
-from asyncio import run
 import cv2
-from cv2 import line
 from .pipeline import PipelineHandler
 from .sendables import VideoProcessingFrame
 from vantage_api.geometry import VantageGeometry
@@ -29,30 +27,27 @@ class ObjectTracker(PipelineHandler):
         #any processing after the pipeline can be done here
         return result
 
-class CloudDetector(PipelineHandler):
-    #Data persists between frames
-    clouds = []
-    def __init__(self) -> None:
+class CreateAverageImage(PipelineHandler):
+    def __init__(self,save_image_path) -> None:
         super().__init__()
-        #any setup options here
+        self.buffer = []
+        self.shape = None
+        self.save_image_path = save_image_path
 
     #Called Per Frame
     def handle(self, task: VideoProcessingFrame, next):
-        
-        white = np.array([255, 255, 255])
-        lowerBound = np.array([30,30,30])
+        self.shape = task.frame.shape
+        self.buffer.append(task.frame)   
+        return next(task)   
 
-        mask = cv2.inRange(task.frame, lowerBound, white)
-        res = cv2.bitwise_and(task.frame, task.frame, mask=mask)
-
-        cv2.imwrite('output/frame_'+str(task.frame_id)+'_cloud.jpg', res)
-        
-        result = next(task)  
-        #any processing after the pipeline can be done here
-        return result
-
+    #called at the end                
     def after(self, processed: ProcessedVideo):
-        print('processing cloud')    
+        mean_frame = np.zeros(self.shape, dtype='float32')
+        for item in self.buffer:
+            mean_frame += item
+        mean_frame /= len(self.buffer)
+        avg = mean_frame.astype('uint8')
+        cv2.imwrite(self.save_image_path, avg)          
 
 class RunwayDetector(PipelineHandler):
     image_width = None
