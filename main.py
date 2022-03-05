@@ -7,7 +7,11 @@ from advantage.handlers import *
 
 app = AdVantage()
 cwd = os.path.dirname(os.path.abspath(__file__))
+#filename = 'VX020001dc'
+#filename = 'VX0200021f'
+#filename = 'VX020001c0'
 filename = 'VX020001c0_stable'
+
 
 pipeline = app.pipeline_factory([
     Verbose(), #Prints information to console
@@ -19,10 +23,10 @@ pipeline = app.pipeline_factory([
         output_video=False, #Output the video
         image_frame_output_dir=os.path.join(cwd,'output') #Outputs Image of each frame
     ),
-    YoloProcessor(
-        os.path.join(cwd,'input/exp3/best.pt'), #weights file. must be absolute
-        conf_thres=0.7 #only save predictions over % 0 to 1
-    ), 
+    #YoloProcessor(
+    #    os.path.join(cwd,'input/exp3/best.pt'), #weights file. must be absolute
+    #    conf_thres=0.7 #only save predictions over % 0 to 1
+    #), 
     ObjectTracker(),
     VideoPredictionVisualisation(), # Applies details to video/image frames
 ])
