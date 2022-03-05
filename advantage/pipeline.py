@@ -31,6 +31,9 @@ class Pipeline:
         for task in tasks:
            self.append(task)
 
+    def reverseHandlers(self):
+        self.handlers.reverse()
+        return self
 
     def append(self, task: PipelineHandler):
         self.handlers.append(task)
@@ -47,11 +50,12 @@ class Pipeline:
     def then(self, afterTask):
         def carry(stack, handler: PipelineHandler):
             def next(taskObject: PipelineObject):
+                if taskObject.continue_frames == False:
+                    return taskObject
                 return handler.handle(taskObject, stack)
             return next    
 
         stack = afterTask
-        self.handlers.reverse()
         for handler in self.handlers:
             stack = carry(stack, handler)
 

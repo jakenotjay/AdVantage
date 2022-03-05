@@ -8,6 +8,7 @@ from yolov5.models.common import DetectMultiBackend
 from yolov5.utils.torch_utils import select_device
 from yolov5.utils.general import (non_max_suppression, scale_coords)
 from .lib import Prediction
+import os
 
 from yolov5.utils.augmentations import letterbox                           
 
@@ -22,6 +23,19 @@ class Verbose(PipelineHandler):
                 print('\t Label: '+prediction.getLabel()+ ' Score: '+str(prediction.getScore())+' Box: '+str(prediction.getBox()))
 
         return handledTask
+
+class PipelineKiller(PipelineHandler):
+    frames_to_process = 0
+    def __init__(self, frames_to_process = 1) -> None:
+        super().__init__()
+        self.frames_to_process = frames_to_process
+
+    def handle(self, task: VideoProcessingFrame, next):
+        if self.frames_to_process > 0 and task.frame_id >= self.frames_to_process:
+            task.continue_frames = False
+            return task
+        else:
+            return next(task)        
 
 class FrameBuffer(PipelineHandler):
     buffer = []
@@ -50,17 +64,35 @@ class VideoAttachGeoData(PipelineHandler):
 class VideoWriter(PipelineHandler):
     video = None
     outputFile = None
-    def __init__(self, outputFile) -> None:
+    image_frame_output_dir = None
+    file_prefix = ''
+    output_video = True
+    def __init__(self, output_file_name, output_video = True, image_frame_output_dir = None) -> None:
         super().__init__()
-        self.outputFile = outputFile
+        self.outputFile = output_file_name
+        self.image_frame_output_dir = image_frame_output_dir
+        self.file_prefix = ''
+        self.output_video = output_video
+        if image_frame_output_dir != None:
+            self.file_prefix = os.path.splitext(os.path.basename(output_file_name))[0]
+
 
     def handle(self, task: VideoProcessingFrame, next):
-        if self.video == None:
+        if self.video == None and self.output_video:
             self.video = cv2.VideoWriter(self.outputFile, cv2.VideoWriter_fourcc(*'DIVX'), task.fps, (task.frame_width, task.frame_height))
+        print('frame copied')    
         task.put('output_frame', task.frame.copy())
         result = next(task)
-        self.video.write(result.get('output_frame'))
+        if self.output_video:
+            self.video.write(result.get('output_frame'))
+        self.imageWriter(result)
         return result
+
+    def imageWriter(self, task:VideoProcessingFrame):
+        if self.image_frame_output_dir != None:
+            imgPath = os.path.join(self.image_frame_output_dir, str(task.frame_id)+'_'+self.file_prefix+'.jpg')
+            cv2.imwrite(imgPath, task.get('output_frame'))
+
 
     def release(self):
         if self.video != None:
@@ -93,7 +125,9 @@ class VideoPredictionVisulisation(PipelineHandler):
         self.fontThickness = fontThickness
 
     def handle(self, task: VideoProcessingFrame, next):
-       if task.has('output_frame') and task.has('predictions'):
+        print('visulisation')
+        if task.has('output_frame') and task.has('predictions'):
+            print('writing frame')
             output_frame = task.get('output_frame')
             for prediction in task.get('predictions'):
                box = prediction.getBox()
@@ -101,7 +135,7 @@ class VideoPredictionVisulisation(PipelineHandler):
                self.printText(output_frame, prediction.getLabel() , (box[2] - 50,box[3] + 50))
                self.printText(output_frame, str(prediction.getScore()) , (box[2] - 100,box[3] + 100))
             task.put('output_frame', output_frame)
-       return next(task)
+        return next(task)
 
     def printText(self,frame, text, position):
         cv2.putText(
@@ -127,6 +161,8 @@ class YoloProcessor(PipelineHandler):
     max_det=1000  # maximum detections per image
     classes=None  # filter by class: --class 0, or --class 0 2 3
     agnostic_nms=False  # class-agnostic NMS
+    skip_frames = 0
+    frame_count = 0
     def __init__(
         self, 
         weights,
@@ -139,6 +175,7 @@ class YoloProcessor(PipelineHandler):
         classes=None,  # filter by class: --class 0, or --class 0 2 3
         agnostic_nms=False,  # class-agnostic NMS
         half=False,  # use FP16 half-precision inference
+        skip_frames = 0
     ) -> None:
         super().__init__()
         self.device = device = select_device(device)
@@ -151,8 +188,20 @@ class YoloProcessor(PipelineHandler):
         self.classes = classes
         self.agnostic_nms = agnostic_nms
         self.half = half
+        self.skip_frames = skip_frames
+        self.frame_count = 0
             
     def handle(self, task: VideoProcessingFrame, next):
+
+        if self.skip_frames > 0 and self.frame_count > 0: 
+            if self.frame_count > 0 and self.frame_count <= self.skip_frames:
+                if self.frame_count >= self.skip_frames:
+                    self.frame_count = 0
+                else:
+                   self.frame_count += 1 
+                return next(task)
+        self.frame_count += 1         
+
         if self.imgz == None:
             self.imgz = (task.frame_width, task.frame_height)
         imgz = self.imgz
