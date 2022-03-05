@@ -14,7 +14,20 @@ from yolov5.utils.augmentations import letterbox
 
 
 class ObjectTracker(PipelineHandler):
+    #Data persists between frames
     trackedObject = []
+    def __init__(self) -> None:
+        super().__init__()
+        #any setup options here
+
+    #Called Per Frame
+    def handle(self, task: VideoProcessingFrame, next):
+        #processing of frame here (task.frame). must always return next(task)
+        result = next(task)  
+        #any processing after the pipeline can be done here
+        return result
+
+class RunwayDetector(PipelineHandler):
 
     def __init__(self) -> None:
         super().__init__()
@@ -22,7 +35,7 @@ class ObjectTracker(PipelineHandler):
 
     def handle(self, task: VideoProcessingFrame, next):
         #processing of frame here (task.frame). must always return next(task)
-        return next(task)  
+        return next(task) 
 
 
 class Verbose(PipelineHandler):

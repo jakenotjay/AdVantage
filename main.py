@@ -11,13 +11,13 @@ filename = 'VX020001c0_stable'
 
 pipeline = app.pipeline_factory([
     Verbose(), #Prints information to console
-    #PipelineKiller(frames_to_process = 2), #kills process after x frames
+    PipelineKiller(frames_to_process = 2), #kills process after x frames
     #FrameBuffer(buffer_size = 2), #Keep current and last x frames
     #VideoAttachGeoData('input/VX020001c0_geometry.xml'), #Attach geo data to frame
     VideoWriter(
         os.path.join(cwd,'output',filename+'.mp4'), #Video Path to Save to if set to true
-        output_video=True, #Output the video
-        #image_frame_output_dir=os.path.join(cwd,'output') #Outputs Image of each frame
+        output_video=False, #Output the video
+        image_frame_output_dir=os.path.join(cwd,'output') #Outputs Image of each frame
     ),
     YoloProcessor(
         os.path.join(cwd,'input/exp3/best.pt'), #weights file. must be absolute
