@@ -104,7 +104,7 @@ class ObjectTracker(PipelineHandler):
 
 
                 object_dict = {
-                    'centroid': centroid,
+                    'centroid': centroid.tolist(),
                     'frame_velocity': frame_velocity,
                     'frame_velocity_magnitude': frame_velocity_magnitude,
                     'frame_acceleration': frame_acceleration,
@@ -120,7 +120,7 @@ class ObjectTracker(PipelineHandler):
                 }
             else:
                 object_dict = {
-                    'centroid': centroid,
+                    'centroid': centroid.tolist(),
                     'frame_velocity': [0, 0],
                     'frame_velocity_magnitude': 0,
                     'frame_acceleration': [0, 0],
