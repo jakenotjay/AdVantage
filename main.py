@@ -28,7 +28,8 @@ pipeline = app.pipeline_factory([
     #    conf_thres=0.7 #only save predictions over % 0 to 1
     #), 
     ObjectTracker(),
-    RunwayDetector(image_width=640, output_test_images=True),
+    #RunwayDetector(image_width=640, output_test_images=True),
+    CloudDetector(),
     VideoPredictionVisulisation(), # Applies details to video/image frames
 ])
 

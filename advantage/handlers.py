@@ -9,7 +9,7 @@ import numpy as np
 from yolov5.models.common import DetectMultiBackend
 from yolov5.utils.torch_utils import select_device
 from yolov5.utils.general import (non_max_suppression, scale_coords)
-from .lib import Prediction
+from .lib import Prediction, ProcessedVideo
 import os
 import math
 from yolov5.utils.augmentations import letterbox      
@@ -28,6 +28,31 @@ class ObjectTracker(PipelineHandler):
         result = next(task)  
         #any processing after the pipeline can be done here
         return result
+
+class CloudDetector(PipelineHandler):
+    #Data persists between frames
+    clouds = []
+    def __init__(self) -> None:
+        super().__init__()
+        #any setup options here
+
+    #Called Per Frame
+    def handle(self, task: VideoProcessingFrame, next):
+        
+        white = np.array([255, 255, 255])
+        lowerBound = np.array([30,30,30])
+
+        mask = cv2.inRange(task.frame, lowerBound, white)
+        res = cv2.bitwise_and(task.frame, task.frame, mask=mask)
+
+        cv2.imwrite('output/frame_'+str(task.frame_id)+'_cloud.jpg', res)
+        
+        result = next(task)  
+        #any processing after the pipeline can be done here
+        return result
+
+    def after(self, processed: ProcessedVideo):
+        print('processing cloud')    
 
 class RunwayDetector(PipelineHandler):
     image_width = None
