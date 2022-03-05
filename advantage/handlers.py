@@ -52,7 +52,7 @@ class CreateAverageImage(PipelineHandler):
 class RunwayDetector(PipelineHandler):
     image_width = None
     output_test_images = False
-    def __init__(self, image_width=None, output_test_images = False) -> None:
+    def __init__(self, image_width=480, output_test_images = False) -> None:
         super().__init__()
         self.lines = []
         self.image_width = image_width
@@ -121,15 +121,12 @@ class RunwayDetector(PipelineHandler):
 
     def convertImageToStandardisedBinary(self, img):
         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        ret, thresh = cv2.threshold(img_gray, 120, 255, cv2.THRESH_BINARY)
-
-        white_count = np.sum(thresh == 255)
-        black_count = np.sum(thresh == 0)
-        if white_count > black_count:
-            ret, thresh = cv2.threshold(img_gray, 120, 255, cv2.THRESH_BINARY_INV)
-
-        rect_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-        return cv2.dilate(thresh, rect_kernel, iterations = 1)
+        img_gray = cv2.bitwise_not(img_gray) #invert image
+        rect_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+        img_gray = cv2.dilate(img_gray, rect_kernel, iterations = 1)
+        thresh = cv2.adaptiveThreshold(img_gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY_INV,11,2)
+        return thresh
+        
 
     def getLineLength(self, line):
         l = line[0]
