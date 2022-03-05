@@ -79,8 +79,7 @@ class VideoWriter(PipelineHandler):
 
     def handle(self, task: VideoProcessingFrame, next):
         if self.video == None and self.output_video:
-            self.video = cv2.VideoWriter(self.outputFile, cv2.VideoWriter_fourcc(*'DIVX'), task.fps, (task.frame_width, task.frame_height))
-        print('frame copied')    
+            self.video = cv2.VideoWriter(self.outputFile, cv2.VideoWriter_fourcc(*'DIVX'), task.fps, (task.frame_width, task.frame_height)) 
         task.put('output_frame', task.frame.copy())
         result = next(task)
         if self.output_video:
@@ -125,9 +124,7 @@ class VideoPredictionVisulisation(PipelineHandler):
         self.fontThickness = fontThickness
 
     def handle(self, task: VideoProcessingFrame, next):
-        print('visulisation')
         if task.has('output_frame') and task.has('predictions'):
-            print('writing frame')
             output_frame = task.get('output_frame')
             for prediction in task.get('predictions'):
                box = prediction.getBox()
