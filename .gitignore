@@ -4,3 +4,4 @@ yolov5
 input/*
 output/*
 !input/best.pt
+VENV/*
