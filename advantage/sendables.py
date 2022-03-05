@@ -9,6 +9,7 @@ class VideoProcessingFrame(PipelineObject):
     frame_width = 0
     frame_height = 0
     fps = 0
+    gsd = 1.2 # hard coded sorry Carl :(
     continue_frames = True
     def __init__(self, video: VideoCapture, frame, frame_id, frame_width, frame_height, fps) -> None:
         super().__init__()

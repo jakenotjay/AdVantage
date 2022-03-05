@@ -16,6 +16,10 @@ class AdVantage:
         fps = video.get(cv2.CAP_PROP_FPS)
         frame_width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
         frame_height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        print("video properties are:")
+        print("fps: ", fps)
+        print("frame_width: ", frame_width)
+        print("frame_height: ", frame_height)
         frame_id = -1
         pipeline.reverseHandlers()
         while True:
@@ -43,6 +47,10 @@ class AdVantage:
                 frameMap['predictions'] = []
                 for pred in frame.get('predictions'):
                     frameMap['predictions'].append(pred.toMap())
+
+            if frame.has('frame_objects'):
+                # frameMap['objects'] = json.dumps(frame.get('frame_objects'))
+                print(frame.get('frame_objects'))
 
             outputList.append(frameMap)
 
