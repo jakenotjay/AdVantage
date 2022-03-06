@@ -307,6 +307,12 @@ class VideoPredictionVisualisation(PipelineHandler):
                     for i in range(0, len(lines)):
                         l = lines[i]
                         cv2.line(output_frame, (l[0], l[1]), (l[2], l[3]), (255,0,0), 2, cv2.LINE_AA)   
+            if self.processParam(task, 'runway_ends'):
+                bboxes = task.get('runway_ends')
+                for bbox in bboxes:
+                    p1 = (int(bbox[0]), int(bbox[1]))
+                    p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
+                    cv2.rectangle(output_frame, p1, p2, (255,0,0), 2, 1)              
             task.put('output_frame', output_frame)
         return next(task)
 

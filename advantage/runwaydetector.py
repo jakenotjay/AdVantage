@@ -7,13 +7,15 @@ import numpy as np
 class RunwayDetector(PipelineHandler):
     image_width = None
     output_test_images = False
+    trackers = []
     def __init__(self, image_width=480, output_test_images = False, detect_stablisation_offsets = False) -> None:
         super().__init__()
         self.lines = []
         self.image_width = image_width
         self.output_test_images = output_test_images
-        self.tracker = cv2.TrackerMIL_create()
+        #self.tracker = cv2.TrackerMIL_create()
         self.trackBox = None
+        self.trackers = []
         self.detect_stablisation_offsets = detect_stablisation_offsets
 
     def handle(self, task: VideoProcessingFrame, next):
@@ -25,32 +27,54 @@ class RunwayDetector(PipelineHandler):
         height = int(img.shape[0] * scale)
         dim = (width, height)
         img = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
-        offset_x = 0
-        offset_y = 0
+        offset_y = [0,0,0,0]
+        offset_x = [0,0,0,0]
         img_copy = img.copy()
         if self.detect_stablisation_offsets:
             offset_x, offset_y = self.findStablisedOffset(img)
-            
+
         bin_img = self.convertImageToStandardisedBinary(img)
         lines = self.findLinesInBinaryImage(bin_img, width, offset_x, offset_y)
         lines = self.saveLinesToTask(task,img_copy, lines, width, height)
         img_copy, bin_img = self.saveTestImages(task, img_copy, bin_img)
 
-        after = next(task)
+        self.addNewTrackers(task.frame,lines)
+        bboxes = self.updateTrackers(task.frame)
+        task.put('runway_ends', bboxes)
+        
+        return next(task)
 
-        if self.trackBox == None and len(lines)>0:
-            self.trackBox = self.createBBox(lines[0])
-            ok = self.tracker.init(task.frame, self.trackBox)
-        else:
-            ok, bbox = self.tracker.update(task.frame)
-            outputFrame = task.get('output_frame')
-            p1 = (int(bbox[0]), int(bbox[1]))
-            p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
-            cv2.rectangle(outputFrame, p1, p2, (255,0,0), 2, 1)   
+    def updateTrackers(self, frame):
+        bboxes = []
+        for idx, tracker in enumerate(self.trackers):
+            ok, bbox = tracker['tracker'].update(frame)
+            self.trackers[idx]['centroid'] = bbox
+            bboxes.append(bbox)
+        return bboxes    
 
-        return after    
+    def addNewTrackers(self,frame, lines, pixel_jitter = 100):
+        for line in lines:
+            addTracker = True
+            for tracker in self.trackers:
+                centroid = tracker['centroid']
+                cx = centroid[0] + (centroid[2] / 2)
+                cy = centroid[1] + (centroid[3] / 2)
+                d = math.sqrt(math.pow(abs(cx - line[0]),2) + math.pow(abs(cy - line[1]),2))
+                if d <= pixel_jitter:
+                    addTracker = False
+                    break
 
-    def createBBox(self, centroid, size_half=50):
+            if addTracker:
+                tracker = cv2.TrackerMIL_create()
+                bbox = self.createBBoxForTracker(line)
+                tracker.init(frame, bbox)
+                self.trackers.append({
+                    'centroid': bbox,
+                    'tracker': tracker
+                })    
+
+
+    def createBBoxForTracker(self, centroid, size_half=50):
         return (
             centroid[0] - size_half,
             centroid[1] - size_half,
