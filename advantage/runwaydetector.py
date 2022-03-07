@@ -36,10 +36,12 @@ class RunwayDetector(PipelineHandler):
         bin_img = self.convertImageToStandardisedBinary(img)
         lines = self.findLinesInBinaryImage(bin_img, width, offset_x, offset_y)
         lines = self.saveLinesToTask(task,img_copy, lines, width, height)
-        img_copy, bin_img = self.saveTestImages(task, img_copy, bin_img)
-
+       
         self.addNewTrackers(task.frame,lines)
         bboxes = self.updateTrackers(task.frame)
+
+        img_copy, bin_img = self.saveTestImages(task, img_copy, bin_img)
+
         task.put('runway_ends', bboxes)
         
         return next(task)
@@ -49,7 +51,26 @@ class RunwayDetector(PipelineHandler):
         for idx, tracker in enumerate(self.trackers):
             ok, bbox = tracker['tracker'].update(frame)
             self.trackers[idx]['centroid'] = bbox
-            bboxes.append(bbox)
+
+            bboxes.append([
+                bbox[0],
+                bbox[1],
+                bbox[0] + bbox[2],
+                bbox[1] + bbox[3]
+            ])
+
+            #if self.output_test_images:
+            #    cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[0]+bbox[2], bbox[1] + bbox[3]), (0,255,0),1, cv2.LINE_AA)
+            #x1p = bbox[0] / width 
+            #x2p = (bbox[2] + bbox[0]) / width
+            #y1p = bbox[1] / height
+            #y2p = (bbox[1] + bbox[3]) / height
+            #bboxes.append([
+            #        int(task.frame_width * x1p),
+            #        int(task.frame_height * y1p),
+            #        int(task.frame_width * x2p),
+            #        int(task.frame_height * y2p),
+            #    ])
         return bboxes    
 
     def addNewTrackers(self,frame, lines, pixel_jitter = 100):
@@ -76,8 +97,8 @@ class RunwayDetector(PipelineHandler):
 
     def createBBoxForTracker(self, centroid, size_half=50):
         return (
-            centroid[0] - size_half,
-            centroid[1] - size_half,
+            max(centroid[0] - size_half, 0),
+            max(centroid[1] - size_half, 0),
             size_half*2,
             size_half*2
         )
