@@ -51,6 +51,9 @@ class AdVantage:
             if frame.has('frame_objects'):
                 frameMap['objects'] = frame.get('frame_objects')
 
+            if frame.has('frame_geo_objects'):
+                frameMap['geoObjects'] = frame.get('frame_geo_objects')
+
             if frame.has('runways'):
                 frameMap['runways'] = frame.get('runways')    
 
