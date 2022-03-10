@@ -2,6 +2,8 @@ import xml.etree.ElementTree as ET
 import geopy.distance
 import math
 import numpy as np
+from pyproj.transformer import Transformer, CRS
+from rasterio.transform import from_bounds
 
 NAMESPACE = '{http://www.spacemetric.com/}'
 
@@ -120,43 +122,99 @@ class VantageFrame:
         center = self.getSceneCentreLongLat()
         return center[1] <= 0.0
 
-
     def pointToLongLat(self, image_x, image_y, point_x, point_y):
+        # [[long, lat], ...]
         box = self.getSceneFrameLongLat()
 
-        xip = (point_x / image_x)
-        yip = (point_y / image_y)
+        longs = [point[0] for point in box]
+        lats = [point[1] for point in box]
 
-        R = 6378.1 * 1000
-        my = (point_y * self.getGSD())
-        mx = (point_x * self.getGSD())
-        d = math.sqrt(math.pow(my, 2) + math.pow(mx, 2))
-        brng = np.arcsin(my / d) + (math.pi / 2)
-       
-        lon1 = math.radians(box[0][0])
-        lat1 = math.radians(box[0][1])
-        
-        print('image', point_y, point_x, image_y, image_x)
-        print('mx', mx,'my', my,'d',d)
-        print('bearing', brng)
+        # is image_x, and image_y width and height?
+        width, height = image_x, image_y 
 
-        lat2 = math.asin( 
-            math.sin(lat1)*math.cos(d/R) +
-            math.cos(lat1)*math.sin(d/R)*math.cos(brng)
-        )
+        north = max(lats)
+        west = min(longs)
+        east = max(longs)
+        south = min(lats)
 
-        lon2 = lon1 + math.atan2(
-            math.sin(brng)*math.sin(d/R)*math.cos(lat1),
-            math.cos(d/R)-math.sin(lat1)*math.sin(lat2)
-        )
+        # flat wgs84 in metres
+        crs = CRS.from_epsg(3857)
 
-        lat2 = math.degrees(lat2)
-        lon2 = math.degrees(lon2)
+        # projection transform, always_xy = True as axes are reversed for 3857
+        proj = Transformer.from_crs(crs.geodetic_crs, crs, always_xy=True)
 
-        return [lon2, lat2]
+        west, north = proj.transform(west, north)
+        east, south = proj.transform(east, south)
+
+        # create affine transform matrix
+        transform = from_bounds(west, south, east, north, width, height)
+
+        # matrix multiplication of transform and row, column of image to get 
+        # position in flat projection
+        easting, northing = transform * (point_x, point_y)
+
+        # reverse projection back to geodetic crs
+        revProj = Transformer.from_crs(crs, crs.geodetic_crs, always_xy=True)
+
+        # convert flat projection back to geodetic
+        point_long, point_lat = revProj.transform(easting, northing)
+
+        return point_long, point_lat   
+
+    def longLatToPoint(self, image_x, image_y, long, lat):
+        # [[long, lat], ...]
+        box = self.getSceneFrameLongLat()
+
+        longs = [point[0] for point in box]
+        lats = [point[1] for point in box]
+        width, height = image_x, image_y 
+
+        north = max(lats)
+        west = min(longs)
+        east = max(longs)
+        south = min(lats)
+
+        # flat wgs84 in metres
+        crs = CRS.from_epsg(3857)
+
+        # projection transform, always_xy = True as axes are reversed for 3857
+        proj = Transformer.from_crs(crs.geodetic_crs, crs, always_xy=True)
+
+        west, north = proj.transform(west, north)
+        east, south = proj.transform(east, south)
+
+        # create affine transform matrix for row, column to lat long
+        transform = from_bounds(west, south, east, north, width, height)
+
+        # inverse the transform to get matrix for lat, long to row,column
+        inverse_transform = transform.__invert__()
+        # convert lat long to easting and northing (flat surface)
+        point_easting, point_northing = proj.transform(long, lat)
+
+        row, column = inverse_transform * (point_easting, point_northing)
+
+        return int(row), int(column)
+
+    def calculateDistanceBetweenTwoPoints(self, long1, lat1, long2, lat2):
+        # get geodetic shape
+        geod_wgs84 = CRS("epsg:4326").get_geod()
+        longs = [long1, long2]
+        lats = [lat1, lat2]
+
+        return geod_wgs84.line_length(longs, lats)
+
+    def calculateDistanceAndAzimuthBetweenTwoPoints(self, long1, lat1, long2, lat2):
+        geod_wgs84 = CRS("epsg:4326").get_geod()
+        # determines forward and backwards azimuth (bearing) as well as distance in metres
+        # forward = point1 to point2, backward = point2 to point1
+        forward_azimuths, backward_azimuths, distances = geod_wgs84.inv([long1], [lat1], [long2], [lat2])
+
+        forward_azimuth = forward_azimuths[0]
+        backward_azimuth = backward_azimuths[0]
+        distance = distances[0]
+        return forward_azimuth, backward_azimuth, distance
 
 
-                              
 
 class VantageGeometry:
     filename = None

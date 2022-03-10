@@ -6,7 +6,7 @@ from collections import OrderedDict
 import numpy as np
 
 class CentroidTracker():
-	def __init__(self, maxDisappeared=50):
+	def __init__(self, maxDisappeared=50, isGeo=False):
 		# initialize the next unique object ID along with two ordered
 		# dictionaries used to keep track of mapping a given object
 		# ID to its centroid and number of consecutive frames it has
@@ -19,6 +19,9 @@ class CentroidTracker():
 		# object is allowed to be marked as "disappeared" until we
 		# need to deregister the object from tracking
 		self.maxDisappeared = maxDisappeared
+
+		# check if geolocated
+		self.isGeo = isGeo
 
 	def register(self, centroid):
 		# when registering an object we use the next available object
@@ -33,7 +36,7 @@ class CentroidTracker():
 		del self.objects[objectID]
 		del self.disappeared[objectID]
 
-	def update(self, rects):
+	def update(self, rects, geo=None, task=None):
 		# check to see if the list of input bounding box rectangles
 		# is empty
 		if len(rects) == 0:
@@ -54,12 +57,22 @@ class CentroidTracker():
 
 		# initialize an array of input centroids for the current frame
 		inputCentroids = np.zeros((len(rects), 2), dtype="int")
+		if self.isGeo:
+			inputCentroids = inputCentroids.astype('float')
 
 		# loop over the bounding box rectangles
 		for (i, (startX, startY, endX, endY)) in enumerate(rects):
 			# use the bounding box coordinates to derive the centroid
 			cX = int((startX + endX) / 2.0)
 			cY = int((startY + endY) / 2.0)
+			
+			# if geo exist then centroid is the lat long point
+			if self.isGeo:
+				height = task.frame_height
+				width = task.frame_width
+
+				cX, cY = geo.pointToLongLat(height, width, cX, cY)
+
 			inputCentroids[i] = (cX, cY)
 
 		# if we are currently not tracking any objects take the input
