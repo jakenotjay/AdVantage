@@ -257,10 +257,11 @@ class StablisationDectection(PipelineHandler):
     def __init__(self) -> None:
         super().__init__()
         self.bbox_size = 40
-        self.tracker = cv2.TrackerMIL_create()
+        self.tracker = cv2.legacy.TrackerKCF_create()
         #x,y,w,h
         self.last_bbox = None
         self.centroids = []
+        self.frameCount = 0
 
     #Called Per Frame
     def handle(self, task: VideoProcessingFrame, next):
@@ -278,11 +279,16 @@ class StablisationDectection(PipelineHandler):
             bbh = int(self.bbox_size / 2)
             self.last_bbox = (cx - bbh, cy - bbh, bbh*2, bbh*2)
             self.tracker.init(frame, self.last_bbox)
-            print('made tracker')
         else:
             success, bbox = self.tracker.update(frame)   
             if success:
                 self.last_bbox = bbox 
+
+            #if self.frameCount >= 10:
+                #print('tracker reset')
+                #self.frameCount = 0
+                #self.tracker.init(frame, self.last_bbox)
+
         tbbox = self.saveBBoxForVisulisation(frame, task.frame)
         task.put('stablisation_point', tbbox)
 
@@ -294,12 +300,13 @@ class StablisationDectection(PipelineHandler):
             movement = (centroid[0] - self.centroids[-1][0], centroid[1] - self.centroids[-1][1])
             movement_starting = (centroid[0] - self.centroids[0][0], centroid[1] - self.centroids[0][1])
 
-        print('moved', movement)
         task.put('stablisation', {
             'from_last_frame': movement,
             'from_original_frame': movement_starting
         })
         self.centroids.append(centroid)
+        self.frameCount += 1
+        print('stable len', len(self.centroids))
         return next(task)     
 
     def saveBBoxForVisulisation(self,background_frame, original_frame):
@@ -325,7 +332,11 @@ class BackgroundFrame(PipelineHandler)   :
         resized = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)  
         task.put('background_frame', resized)
         task.put('background_frame_scale', self.scale)
-        return next(task)      
+        result = next(task)   
+        #cleanup frame   
+        task.put('background_frame', None)
+        task.put('background_frame_scale', None)
+        return result
 
 class CreateAverageImage(PipelineHandler):
     def __init__(self,save_image_path) -> None:
@@ -549,7 +560,8 @@ class YoloProcessor(PipelineHandler):
         classes=None,  # filter by class: --class 0, or --class 0 2 3
         agnostic_nms=False,  # class-agnostic NMS
         half=False,  # use FP16 half-precision inference
-        skip_frames = 0
+        skip_frames = 0,
+        clean_predictions_after_frame = False
     ) -> None:
         super().__init__()
         self.device = device = select_device(device)
@@ -564,6 +576,7 @@ class YoloProcessor(PipelineHandler):
         self.half = half
         self.skip_frames = skip_frames
         self.frame_count = 0
+        self.clean_predictions_after_frame = clean_predictions_after_frame
             
     def handle(self, task: VideoProcessingFrame, next):
 
@@ -611,8 +624,22 @@ class YoloProcessor(PipelineHandler):
             for *xyxy, conf, cls in reversed(det):
                 c = int(cls)  # integer class
                 label = model.names[c]
-                prediction = Prediction(label, conf.item(), xyxy[0].item(), xyxy[1].item(), xyxy[2].item(), xyxy[3].item())
+                x1 = xyxy[0].item()
+                y1 = xyxy[1].item()
+                x2 = xyxy[2].item()
+                y2 = xyxy[3].item()
+                if(task.has('stablisation')):
+                    stablisation = task.get('stablisation')
+                    x1 += stablisation['from_original_frame'][0]
+                    y1 += stablisation['from_original_frame'][1]
+                    x2 += stablisation['from_original_frame'][0]
+                    y2 += stablisation['from_original_frame'][1]
+
+                prediction = Prediction(label, conf.item(),x1,y1,x2,y2)
                 predictions.append(prediction)
 
         task.put('predictions', predictions)       
-        return next(task)  
+        result = next(task)  
+        if self.clean_predictions_after_frame:
+            task.put('predictions', None)
+        return result    

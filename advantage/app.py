@@ -29,6 +29,7 @@ class AdVantage:
                 break 
             process = VideoProcessingFrame(video, frame, frame_id, frame_width, frame_height, fps)
             processedFrame = pipeline.send(process)
+            processedFrame.clean()
             processedVideo.append(processedFrame)
         
             if processedFrame.continue_frames == False:
