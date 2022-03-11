@@ -253,6 +253,80 @@ class GeoObjectTracker(PipelineHandler):
         result = next(task)
         return result
 
+class StablisationDectection(PipelineHandler):  
+    def __init__(self) -> None:
+        super().__init__()
+        self.bbox_size = 40
+        self.tracker = cv2.TrackerMIL_create()
+        #x,y,w,h
+        self.last_bbox = None
+        self.centroids = []
+
+    #Called Per Frame
+    def handle(self, task: VideoProcessingFrame, next):
+        if task.has('background_frame'):
+            frame = task.get('background_frame')
+        else:
+            frame = task.frame
+
+        width = frame.shape[0]
+        height = frame.shape[1]
+        cx = int(width * 0.5)
+        cy = int(height * 0.5)
+
+        if self.last_bbox == None:
+            bbh = int(self.bbox_size / 2)
+            self.last_bbox = (cx - bbh, cy - bbh, bbh*2, bbh*2)
+            self.tracker.init(frame, self.last_bbox)
+            print('made tracker')
+        else:
+            success, bbox = self.tracker.update(frame)   
+            if success:
+                self.last_bbox = bbox 
+        tbbox = self.saveBBoxForVisulisation(frame, task.frame)
+        task.put('stablisation_point', tbbox)
+
+        centroid = (tbbox[0] + (tbbox[2] / 2),tbbox[1] + (tbbox[3] / 2))
+        
+        movement = (0,0)
+        movement_starting = (0,0)
+        if len(self.centroids) > 0:
+            movement = (centroid[0] - self.centroids[-1][0], centroid[1] - self.centroids[-1][1])
+            movement_starting = (centroid[0] - self.centroids[0][0], centroid[1] - self.centroids[0][1])
+
+        print('moved', movement)
+        task.put('stablisation', {
+            'from_last_frame': movement,
+            'from_original_frame': movement_starting
+        })
+        self.centroids.append(centroid)
+        return next(task)     
+
+    def saveBBoxForVisulisation(self,background_frame, original_frame):
+        xp = self.last_bbox[0] / background_frame.shape[0] 
+        yp = self.last_bbox[1] / background_frame.shape[1]
+        w = self.bbox_size / background_frame.shape[1]
+        width = original_frame.shape[0]
+        height = original_frame.shape[1]
+        return (width * xp, height * yp,  (width * xp) + (width * w),  (height * yp) + (height * w))
+
+class BackgroundFrame(PipelineHandler)   :
+    def __init__(self,scale = 50) -> None:
+        super().__init__()
+        self.scale = scale
+
+    #Called Per Frame
+    def handle(self, task: VideoProcessingFrame, next):
+        img = task.frame
+        width = int(img.shape[1] * self.scale / 100)
+        height = int(img.shape[0] * self.scale / 100)
+        dim = (width, height)   
+        # resize image
+        resized = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)  
+        task.put('background_frame', resized)
+        task.put('background_frame_scale', self.scale)
+        return next(task)      
+
 class CreateAverageImage(PipelineHandler):
     def __init__(self,save_image_path) -> None:
         super().__init__()
@@ -425,6 +499,11 @@ class VideoPredictionVisualisation(PipelineHandler):
                     self.printText(output_frame, "Longitude, Latitude: " + str(round(object['long_lat'][0], ndigits=2)) + ", " + str(round(object['long_lat'][1], ndigits=2)), (centroid[0]+10, centroid[1] - 30))
                     self.printText(output_frame, "Velocity: " + str(round(object['geo_velocity'])) + "m/s", (centroid[0]+10, centroid[1] - 60))
                     self.printText(output_frame, "Azimuth: " + str(round(object['forward_azimuth'])), (centroid[0]+10, centroid[1] - 90))
+            if self.processParam(task, 'stablisation_point'):
+                bbox = task.get('stablisation_point')  
+                p1 = (int(bbox[0]), int(bbox[1]))
+                p2 = (int(bbox[2]), int(bbox[3]))
+                cv2.rectangle(output_frame, p1, p2, (255,0,0), 2, 1)     
 
             task.put('output_frame', output_frame)
         return next(task)
