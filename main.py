@@ -22,7 +22,7 @@ pipeline = app.pipeline_factory([
     BackgroundFrame(scale=80), #Creates a resized frame to process on
     StablisationDectection(bbox_size=40),
     VideoWriter(
-        os.path.join(cwd,'output',filename+'.mp4'), #Video Path to Save to if set to true
+        os.path.join(acwd,'output',filename+'.mp4'), #Video Path to Save to if set to true
         output_video=True, #Output the video
         #image_frame_output_dir=os.path.join(cwd,'output') #Outputs Image of each frame
     ),
@@ -31,7 +31,7 @@ pipeline = app.pipeline_factory([
        conf_thres=0.7, #only save predictions over % 0 to 1
        clean_predictions_after_frame=True
     ), 
-    ObjectTracker(),
+    ObjectTracker(isolateObjectIds=[1,9]),
     #RunwayDetector(output_test_images=False),
     VideoPredictionVisualisation(include=['frame_objects','stablisation_point']), # Applies details to video/image frames
 ])
