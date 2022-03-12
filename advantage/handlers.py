@@ -450,7 +450,7 @@ class Verbose(PipelineHandler):
 
         handledTask = next(task)
 
-        if task.has('predictions'):
+        if task.has('predictions') and task.get('predictions') != None:
             for prediction in task.get('predictions'):
                 print('\t Label: '+prediction.getLabel()+ ' Score: '+str(prediction.getScore())+' Box: '+str(prediction.getBox()))
 

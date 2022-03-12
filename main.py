@@ -15,7 +15,7 @@ filename = 'VX020001c0'
 
 
 pipeline = app.pipeline_factory([
-    #Verbose(), #Prints information to console
+    Verbose(), #Prints information to console
     #PipelineKiller(frames_to_process = 10), #kills process after x frames
     #FrameBuffer(buffer_size = 2), #Keep current and last x frames
     #VideoAttachGeoData('input/VX020001c0_geometry.xml'), #Attach geo data to frame
