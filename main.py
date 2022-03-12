@@ -15,10 +15,12 @@ filename = 'VX020001c0'
 
 
 pipeline = app.pipeline_factory([
-    Verbose(), #Prints information to console
-    PipelineKiller(frames_to_process = 10), #kills process after x frames
+    #Verbose(), #Prints information to console
+    #PipelineKiller(frames_to_process = 10), #kills process after x frames
     #FrameBuffer(buffer_size = 2), #Keep current and last x frames
-    VideoAttachGeoData('input/VX020001c0_geometry.xml'), #Attach geo data to frame
+    #VideoAttachGeoData('input/VX020001c0_geometry.xml'), #Attach geo data to frame
+    BackgroundFrame(scale=80), #Creates a resized frame to process on
+    StablisationDectection(bbox_size=40),
     VideoWriter(
         os.path.join(cwd,'output',filename+'.mp4'), #Video Path to Save to if set to true
         output_video=True, #Output the video
@@ -26,11 +28,12 @@ pipeline = app.pipeline_factory([
     ),
     YoloProcessor(
        os.path.join(cwd,'input/exp3/best.pt'), #weights file. must be absolute
-       conf_thres=0.7 #only save predictions over % 0 to 1
+       conf_thres=0.7, #only save predictions over % 0 to 1
+       clean_predictions_after_frame=True
     ), 
-    GeoObjectTracker(),
-    RunwayDetector(output_test_images=False),
-    VideoPredictionVisualisation(include=['frame_geo_objects','runway_ends']), # Applies details to video/image frames
+    ObjectTracker(),
+    #RunwayDetector(output_test_images=False),
+    VideoPredictionVisualisation(include=['frame_objects','stablisation_point']), # Applies details to video/image frames
 ])
 
 result = app.process_video(os.path.join(cwd,'input',filename+'.mp4'), pipeline)

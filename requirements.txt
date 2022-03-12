@@ -2,7 +2,6 @@ requests==2.27.1
 geopy==2.2.0
 numpy==1.19.3
 opencv-python==4.5.5.62
-opencv-contrib-python==4.5.5.64
 pyproj
 rasterio
 
