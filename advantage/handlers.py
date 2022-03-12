@@ -78,13 +78,22 @@ class ObjectTracker(PipelineHandler):
                 centroid = [round(cxp * o_width), round(xyp * o_height)]
 
             object_dict = {}
-            real_centroid = [int(centroid[0]), int(centroid[1])]
             distance_from_mid = 0
             if has_stablisation:
                 sp = task.get('stablisation')
-                xo = sp['centroid'][0] - real_centroid[0]
-                yo = sp['centroid'][1] - real_centroid[1]
+                xo = sp['centroid'][0] - centroid[0]
+                yo = sp['centroid'][1] - centroid[1]
                 distance_from_mid = math.sqrt(math.pow(xo,2) + math.pow(yo,2))
+                if task.has('output_frame'):
+                    output_frame = task.get('output_frame')
+                    #draw a santity line
+                    cv2.line(
+                        output_frame, 
+                        [round(sp['centroid'][0]), round(sp['centroid'][1])], 
+                        [round(centroid[0]), round(centroid[1])],
+                        (0,255,0), 
+                        2
+                    )
 
             if objectID in self.trackedObjects:
                 # for object ID get the last frame
@@ -115,7 +124,6 @@ class ObjectTracker(PipelineHandler):
 
                 object_dict = {
                     'centroid': centroid,
-                    'relative_centroid':real_centroid,
                     'distance_from_mid':distance_from_mid,
                     'frame_velocity': frame_velocity,
                     'frame_velocity_magnitude': frame_velocity_magnitude,
@@ -133,7 +141,6 @@ class ObjectTracker(PipelineHandler):
             else:
                 object_dict = {
                     'centroid': centroid,
-                    'relative_centroid':real_centroid,
                     'distance_from_mid':distance_from_mid,
                     'frame_velocity': [0, 0],
                     'frame_velocity_magnitude': 0,
@@ -286,13 +293,15 @@ class GeoObjectTracker(PipelineHandler):
         result = next(task)
         return result
 
-class StablisationDectection(PipelineHandler):  
+class StablisationDetection(PipelineHandler):  
     def __init__(self, bbox_size = 40) -> None:
         super().__init__()
         self.bbox_size = bbox_size
         self.tracker = cv2.TrackerMIL_create()
         #x,y,w,h
         self.last_bbox = None
+        self.x_offset = .5
+        self.y_offset = .5
         self.centroids = []
 
     #Called Per Frame
@@ -304,12 +313,12 @@ class StablisationDectection(PipelineHandler):
 
         width = frame.shape[0]
         height = frame.shape[1]
-        cx = int(width * 0.5)
-        cy = int(height * 0.5)
+        cx = width * self.x_offset
+        cy = height * self.y_offset
 
         if self.last_bbox == None:
-            bbh = int(self.bbox_size / 2)
-            self.last_bbox = (cx - bbh, cy - bbh, bbh*2, bbh*2)
+            bbh = round(self.bbox_size / 2)
+            self.last_bbox = (round(cx - bbh), round(cy - bbh), round(bbh*2), round(bbh*2))
             self.tracker.init(frame, self.last_bbox)
         else:
             success, bbox = self.tracker.update(frame)   
@@ -319,7 +328,9 @@ class StablisationDectection(PipelineHandler):
         tbbox = self.saveBBoxForVisulisation(frame, task.frame)
         task.put('stablisation_point', tbbox)
 
-        centroid = (tbbox[0] + (tbbox[2] / 2),tbbox[1] + (tbbox[3] / 2))
+        cx = tbbox[0] + ((tbbox[2] - tbbox[0])/2)
+        cy = tbbox[1] + ((tbbox[3] - tbbox[1])/2)
+        centroid = (cx, cy)
         
         movement = (0,0)
         movement_starting = (0,0)
@@ -333,7 +344,6 @@ class StablisationDectection(PipelineHandler):
             'from_original_frame': movement_starting
         })
         self.centroids.append(centroid)
-        print('stable len', len(self.centroids))
         return next(task)     
 
     def saveBBoxForVisulisation(self,background_frame, original_frame):
@@ -364,6 +374,44 @@ class BackgroundFrame(PipelineHandler)   :
         task.put('background_frame', None)
         task.put('background_frame_scale', None)
         return result
+
+class MovementFilter(PipelineHandler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.frame_buffer = 5
+        self.jitter = (2, 5)
+        self.distances = {}
+        self.trends = {}
+
+    #Called Per Frame
+    def handle(self, task: VideoProcessingFrame, next):
+        filtered_frame_objects = []
+        if task.has('frame_objects'):
+            frameObjects = task.get('frame_objects')  
+            for frameObject in frameObjects:
+                objectID = frameObject['object_id']
+                if (objectID in self.distances.keys()) == False:
+                     self.distances[objectID] = []
+
+                self.distances[objectID].append(frameObject['distance_from_mid'])   
+                objectDistances = self.distances[objectID]  
+
+                if len(objectDistances) > 1:
+                    x = np.arange(0,len(objectDistances))
+                    y=np.array(objectDistances)
+                    z = np.polyfit(x,y,1)
+                    trend = z[1]
+
+                    if (objectID in self.trends.keys()) == False:
+                        self.trends[objectID] = []
+                    elif trend > self.trends[objectID][-1]:
+                        task.put('frame_objects', filtered_frame_objects)
+
+                    self.trends[objectID].append(trend)
+            
+        return next(task)   
+    
+
 
 class CreateAverageImage(PipelineHandler):
     def __init__(self,save_image_path) -> None:
@@ -542,8 +590,12 @@ class VideoPredictionVisualisation(PipelineHandler):
                     self.printText(output_frame, "Azimuth: " + str(round(object['forward_azimuth'])), (centroid[0]+10, centroid[1] - 90))
             if self.processParam(task, 'stablisation_point'):
                 bbox = task.get('stablisation_point')  
-                p1 = (int(bbox[0]), int(bbox[1]))
-                p2 = (int(bbox[2]), int(bbox[3]))
+                p1 = (round(bbox[0]), round(bbox[1]))
+                p2 = (round(bbox[2]), round(bbox[3]))
+                cx = round(bbox[0] + ((bbox[2] - bbox[0]) / 2))
+                cy = round(bbox[1] + ((bbox[3] - bbox[1]) / 2))
+                centroid = [cx, cy]
+                cv2.circle(output_frame, centroid, radius=10, color=self.fontColour, thickness=-1)
                 cv2.rectangle(output_frame, p1, p2, (255,0,0), 2, 1)     
 
             task.put('output_frame', output_frame)
@@ -591,7 +643,7 @@ class YoloProcessor(PipelineHandler):
         agnostic_nms=False,  # class-agnostic NMS
         half=False,  # use FP16 half-precision inference
         skip_frames = 0,
-        clean_predictions_after_frame = False
+        clean_predictions_after_frame = True
     ) -> None:
         super().__init__()
         self.device = device = select_device(device)
