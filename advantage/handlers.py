@@ -379,7 +379,7 @@ class MovementFilter(PipelineHandler):
     def __init__(self) -> None:
         super().__init__()
         self.frame_buffer = 5
-        self.jitter = (2, 5)
+        self.trend_threshold = .5
         self.distances = {}
         self.trends = {}
 
@@ -408,7 +408,7 @@ class MovementFilter(PipelineHandler):
                     print('trend '+str(objectID), trend)
                     if (objectID in self.trends.keys()) == False:
                         self.trends[objectID] = []
-                    elif (trend > 0.5) or (trend < -0.5) :
+                    elif (trend > self.trend_threshold) or (trend < -self.trend_threshold) :
                         print('trend valid: ',objectID)
                         filtered_frame_objects.append(frameObject)
 
