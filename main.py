@@ -20,7 +20,7 @@ pipeline = app.pipeline_factory([
     #FrameBuffer(buffer_size = 2), #Keep current and last x frames
     #VideoAttachGeoData('input/VX020001c0_geometry.xml'), #Attach geo data to frame
     BackgroundFrame(scale=80), #Creates a resized frame to process on
-    StablisationDetection(bbox_size=60),
+    StablisationDetection(bbox_size=100),
     VideoWriter(
         os.path.join(cwd,'output',filename+'.mp4'), #Video Path to Save to if set to true
         output_video=True, #Output the video
@@ -30,7 +30,7 @@ pipeline = app.pipeline_factory([
        os.path.join(cwd,'input/exp3/best.pt'), #weights file. must be absolute
        conf_thres=0.7, #only save predictions over % 0 to 1
     ), 
-    ObjectTracker(isolateObjectIds=[]),
+    ObjectTracker(isolateObjectIds=[]), #nice ones to check 9,8,11,1
     MovementFilter(),
     #RunwayDetector(output_test_images=False),
     VideoPredictionVisualisation(include=['frame_objects','stablisation_point']), # Applies details to video/image frames
