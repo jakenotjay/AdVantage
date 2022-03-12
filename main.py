@@ -39,11 +39,11 @@ pipeline = app.pipeline_factory([
     ),
     YoloProcessor(
        os.path.join(cwd,'input/exp23/best.pt'), #weights file. must be absolute
-       conf_thres=0.7, #only save predictions over % 0 to 1,
+       conf_thres=0.8, #only save predictions over % 0 to 1,
        skip_frames=10
     ), 
-    ObjectTracker(ObjectDetectionTracker(offset_allowance=10), isolateObjectIds=[], sanity_lines=True), #nice ones to check 9,8,11,1
-    #MovementFilter(),
+    ObjectTracker(ObjectDetectionTracker(offset_allowance=10), isolateObjectIds=[], sanity_lines=True),
+    MovementFilter(),
     #VideoAttachGeoData('input/VX020001c0_geometry.xml'), #Attach geo data to frame
     VideoPredictionVisualisation(include=['frame_objects','stablisation_points']), # Applies details to video/image frames
 ])

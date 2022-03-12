@@ -53,7 +53,7 @@ class ObjectTracker(PipelineHandler):
                     box = [round(width * x1p), round(height * y1p), round(width * x2p), round(height * y2p)]
                 boxes.append(box) 
             if self.has_setup_trackers:
-                print('update trackers')
+                print('YOLOed')
                 objects = self.ct.update(frame, boxes)  
             else:          
                 objects = self.ct.init(frame,boxes)
