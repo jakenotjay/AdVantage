@@ -4,6 +4,50 @@
 from scipy.spatial import distance as dist
 from collections import OrderedDict
 import numpy as np
+import cv2
+from threading import Thread
+
+def _processObject(tracker, frame, objectId, boxes):
+	_, bbox = tracker.update(frame)
+	boxes[objectId] = bbox
+
+class ObjectDetectionTracker():
+	def __init__(self):
+		self.trackers = []
+
+	def init(self, frame, objects):
+		boxes = []
+		for object in objects:
+			tracker = cv2.TrackerMIL_create()
+			box = self.boxToROI(object)
+			boxes.append(box)
+			tracker.init(frame, box)
+			self.trackers.append(tracker)
+		return self.boxesToCentroids(boxes)
+
+	def update(self, frame):
+		boxes = [None] * (len(self.trackers)) 
+		threads = [None] * (len(self.trackers)) 
+		for objectId, tracker in enumerate(self.trackers):
+			threads[objectId] = Thread(target=_processObject, args=(tracker, frame, objectId, boxes))
+			threads[objectId].start()
+
+		for i in range(len(threads)):
+			threads[i].join()	
+
+		return self.boxesToCentroids(boxes)
+
+	def boxesToCentroids(self, boxes):
+		centroids = []
+		for box in boxes:
+			x = box[0] + (box[2] / 2)
+			y = box[1] + (box[3] / 2)
+			centroids.append([int(x),int(y)])
+		return enumerate(centroids)	
+
+	def boxToROI(self,box):
+		return (box[0],box[1],(box[2] - box[0]),(box[3] - box[1]))	
+
 
 class CentroidTracker():
 	def __init__(self, maxDisappeared=50, isGeo=False):

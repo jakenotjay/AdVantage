@@ -29,6 +29,7 @@ class AdVantage:
                 break 
             process = VideoProcessingFrame(video, frame, frame_id, frame_width, frame_height, fps)
             processedFrame = pipeline.send(process)
+            processedFrame.clean()
             processedVideo.append(processedFrame)
         
             if processedFrame.continue_frames == False:
@@ -43,7 +44,7 @@ class AdVantage:
             frameMap = {
                 'frame_id': frame.frame_id
             }
-            if frame.has('predictions'):
+            if frame.has('predictions') and frame.get('predictions') != None:
                 frameMap['predictions'] = []
                 for pred in frame.get('predictions'):
                     frameMap['predictions'].append(pred.toMap())

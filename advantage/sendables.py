@@ -21,3 +21,5 @@ class VideoProcessingFrame(PipelineObject):
         self.fps = fps
         self.continue_frames = True
 
+    def clean(self):
+        self.frame = None

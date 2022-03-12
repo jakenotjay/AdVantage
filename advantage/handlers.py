@@ -1,7 +1,8 @@
+from re import M
 import cv2
 from .pipeline import PipelineHandler
 from .sendables import VideoProcessingFrame
-from .trackers import CentroidTracker
+from .trackers import CentroidTracker, ObjectDetectionTracker
 from vantage_api.geometry import VantageGeometry
 import torch
 import numpy as np
@@ -24,39 +25,76 @@ class ObjectTracker(PipelineHandler):
     #   'other data'
     # }
     trackedObjects = {}
-    def __init__(self) -> None:
+    def __init__(self, isolateObjectIds = []) -> None:
         super().__init__()
-        self.ct = CentroidTracker()
+        self.ct = ObjectDetectionTracker()
+        self.isolateObjectIds = isolateObjectIds
 
     #Called Per Frame
     def handle(self, task: VideoProcessingFrame, next):
-        #processing of frame here (task.frame). must always return next(task)
-        frame = task.frame
-
         # get properties of video
         gsd = task.gsd
         fps = task.fps
+        using_background_frame = task.has('background_frame')
+        has_stablisation = task.has('stablisation')
+        has_predictions = task.has('predictions')
 
-        rects = []
+        if using_background_frame:
+            frame = task.get('background_frame')
+        else:
+            frame = task.frame
+        o_width = task.frame.shape[0]
+        o_height = task.frame.shape[1]
+        width = frame.shape[0]
+        height = frame.shape[1]
 
-        geo = None
-        if task.has('geo'):
-            geo = task.get('geo')
-            print("geo", geo)
-
-        if task.has('predictions'):
-            for prediction in task.get('predictions'):
-                box = np.asarray(prediction.getBox())
-                rects.append(box.astype("int"))
+        if has_predictions:
+            boxes = []
+            for pred in task.get('predictions'):
+                box  = pred.getBox()
+                if using_background_frame:
+                    x1p = box[0] / o_width
+                    y1p = box[1] / o_height
+                    x2p = box[2] / o_width
+                    y2p = box[3] / o_height
+                    box = [round(width * x1p), round(height * y1p), round(width * x2p), round(height * y2p)]
+                boxes.append(box)      
+            objects = self.ct.init(frame,boxes)
+        else:
+            objects = self.ct.update(frame)    
 
         # update centroid tracker with new centroids
-        objects = self.ct.update(rects)
+
         frame_objects = []
 
         # loop over the tracked objects
-        for (objectID, centroid) in objects.items():
-           
+        for (objectID, centroid) in objects:
+            if len(self.isolateObjectIds) > 0 and (objectID in self.isolateObjectIds) == False:
+                continue
+
+            if using_background_frame:
+                cxp = centroid[0] / width
+                xyp = centroid[1] / height
+                centroid = [round(cxp * o_width), round(xyp * o_height)]
+
             object_dict = {}
+            distance_from_mid = 0
+            if has_stablisation:
+                sp = task.get('stablisation')
+                xo = sp['centroid'][0] - centroid[0]
+                yo = sp['centroid'][1] - centroid[1]
+                distance_from_mid = math.sqrt(math.pow(xo,2) + math.pow(yo,2))
+                if task.has('output_frame'):
+                    output_frame = task.get('output_frame')
+                    #draw a santity line
+                    cv2.line(
+                        output_frame, 
+                        [round(sp['centroid'][0]), round(sp['centroid'][1])], 
+                        [round(centroid[0]), round(centroid[1])],
+                        (0,255,0), 
+                        2
+                    )
+
             if objectID in self.trackedObjects:
                 # for object ID get the last frame
                 last_object_frame = self.trackedObjects[objectID][-1]
@@ -71,35 +109,12 @@ class ObjectTracker(PipelineHandler):
         
                 # acceleration in pixels
                 frame_acceleration = [(frame_velocity[0] - last_velocity[0]) / t, (frame_velocity[1] - last_velocity[1]) / t]
+                
 
-                def calculateBearingOfVector(vector):
-                    x = vector[0]
-                    y = vector[1]
-                    bearing = 0
-                    if(x > 0 and y > 0):
-                        # first quadrant
-                        bearing = np.arctan(x/y)
-                    elif (x > 0 and y < 0):
-                        # second quadrant
-                        bearing = (np.pi/2) + np.arctan(y/x)
-                    elif (x < 0 and y < 0):
-                        # third quadrant
-                        bearing = np.pi + np.arctan(x/y)
-                    elif (x < 0 and y > 0):
-                        # fourth quadrant
-                        bearing = ((2 * np.pi) / 3) + np.arctan(y/x)
-                    else:
-                        return 0
-                    
-                    return np.degrees(bearing)
-
-                def calculateMagnitudeOfVector(vector):
-                    return np.sqrt(np.power(vector[0], 2) + np.power([1], 2))[0]
-
-                frame_velocity_magnitude = calculateMagnitudeOfVector(frame_velocity)
-                frame_acceleration_magnitude = calculateMagnitudeOfVector(frame_acceleration)
-                frame_bearing = calculateBearingOfVector(frame_velocity)
-                frame_acceleration_bearing = calculateBearingOfVector(frame_acceleration)
+                frame_velocity_magnitude = self.calculateMagnitudeOfVector(frame_velocity)
+                frame_acceleration_magnitude = self.calculateMagnitudeOfVector(frame_acceleration)
+                frame_bearing = self.calculateBearingOfVector(frame_velocity)
+                frame_acceleration_bearing = self.calculateBearingOfVector(frame_acceleration)
 
                 world_velocity = [i * gsd for i in frame_velocity]
                 world_velocity_magnitude = frame_velocity_magnitude * gsd
@@ -108,7 +123,8 @@ class ObjectTracker(PipelineHandler):
 
 
                 object_dict = {
-                    'centroid': centroid.tolist(),
+                    'centroid': centroid,
+                    'distance_from_mid':distance_from_mid,
                     'frame_velocity': frame_velocity,
                     'frame_velocity_magnitude': frame_velocity_magnitude,
                     'frame_acceleration': frame_acceleration,
@@ -124,7 +140,8 @@ class ObjectTracker(PipelineHandler):
                 }
             else:
                 object_dict = {
-                    'centroid': centroid.tolist(),
+                    'centroid': centroid,
+                    'distance_from_mid':distance_from_mid,
                     'frame_velocity': [0, 0],
                     'frame_velocity_magnitude': 0,
                     'frame_acceleration': [0, 0],
@@ -152,6 +169,29 @@ class ObjectTracker(PipelineHandler):
         result = next(task)  
         #any processing after the pipeline can be done here
         return result
+    def calculateBearingOfVector(self,vector):
+        x = vector[0]
+        y = vector[1]
+        bearing = 0
+        if(x > 0 and y > 0):
+            # first quadrant
+            bearing = np.arctan(x/y)
+        elif (x > 0 and y < 0):
+            # second quadrant
+            bearing = (np.pi/2) + np.arctan(y/x)
+        elif (x < 0 and y < 0):
+            # third quadrant
+            bearing = np.pi + np.arctan(x/y)
+        elif (x < 0 and y > 0):
+            # fourth quadrant
+            bearing = ((2 * np.pi) / 3) + np.arctan(y/x)
+        else:
+            return 0
+                    
+        return np.degrees(bearing)
+
+    def calculateMagnitudeOfVector(self,vector):
+        return np.sqrt(np.power(vector[0], 2) + np.power([1], 2))[0]    
 
 class GeoObjectTracker(PipelineHandler):
     #Data persists between frames
@@ -253,6 +293,135 @@ class GeoObjectTracker(PipelineHandler):
         result = next(task)
         return result
 
+class StablisationDetection(PipelineHandler):  
+    def __init__(self, bbox_size = 40) -> None:
+        super().__init__()
+        self.bbox_size = bbox_size
+        self.tracker = cv2.TrackerMIL_create()
+        #x,y,w,h
+        self.last_bbox = None
+        self.x_offset = .5
+        self.y_offset = .5
+        self.centroids = []
+
+    #Called Per Frame
+    def handle(self, task: VideoProcessingFrame, next):
+        if task.has('background_frame'):
+            frame = task.get('background_frame')
+        else:
+            frame = task.frame
+
+        width = frame.shape[0]
+        height = frame.shape[1]
+        cx = width * self.x_offset
+        cy = height * self.y_offset
+
+        if self.last_bbox == None:
+            bbh = round(self.bbox_size / 2)
+            self.last_bbox = (round(cx - bbh), round(cy - bbh), round(bbh*2), round(bbh*2))
+            self.tracker.init(frame, self.last_bbox)
+        else:
+            success, bbox = self.tracker.update(frame)   
+            if success:
+                self.last_bbox = bbox 
+
+        tbbox = self.saveBBoxForVisulisation(frame, task.frame)
+        task.put('stablisation_point', tbbox)
+
+        cx = tbbox[0] + ((tbbox[2] - tbbox[0])/2)
+        cy = tbbox[1] + ((tbbox[3] - tbbox[1])/2)
+        centroid = (cx, cy)
+        
+        movement = (0,0)
+        movement_starting = (0,0)
+        if len(self.centroids) > 0:
+            movement = (centroid[0] - self.centroids[-1][0], centroid[1] - self.centroids[-1][1])
+            movement_starting = (centroid[0] - self.centroids[0][0], centroid[1] - self.centroids[0][1])
+
+        task.put('stablisation', {
+            'centroid':centroid,
+            'from_last_frame': movement,
+            'from_original_frame': movement_starting
+        })
+        self.centroids.append(centroid)
+        return next(task)     
+
+    def saveBBoxForVisulisation(self,background_frame, original_frame):
+        xp = self.last_bbox[0] / background_frame.shape[0] 
+        yp = self.last_bbox[1] / background_frame.shape[1]
+        w = self.bbox_size / background_frame.shape[1]
+        width = original_frame.shape[0]
+        height = original_frame.shape[1]
+        return (width * xp, height * yp,  (width * xp) + (width * w),  (height * yp) + (height * w))
+
+class BackgroundFrame(PipelineHandler)   :
+    def __init__(self,scale = 50) -> None:
+        super().__init__()
+        self.scale = scale
+
+    #Called Per Frame
+    def handle(self, task: VideoProcessingFrame, next):
+        img = task.frame
+        width = int(img.shape[1] * self.scale / 100)
+        height = int(img.shape[0] * self.scale / 100)
+        dim = (width, height)   
+        # resize image
+        resized = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)  
+        task.put('background_frame', resized)
+        task.put('background_frame_scale', self.scale)
+        result = next(task)   
+        #cleanup frame   
+        task.put('background_frame', None)
+        task.put('background_frame_scale', None)
+        return result
+
+class MovementFilter(PipelineHandler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.frame_buffer = 5
+        self.trend_threshold = .4
+        self.distances = {}
+        self.trends = {}
+
+    #Called Per Frame
+    def handle(self, task: VideoProcessingFrame, next):
+        filtered_frame_objects = []
+        if task.has('frame_objects'):
+            frameObjects = task.get('frame_objects')  
+            for frameObject in frameObjects:
+                objectID = frameObject['object_id']
+                if (objectID in self.distances.keys()) == False:
+                     self.distances[objectID] = []
+
+                self.distances[objectID].append(frameObject['distance_from_mid'])   
+                objectDistances = self.distances[objectID]  
+
+                #idx = min(self.frame_buffer, len(self.distances[objectID] ))
+                #objectDistances = self.distances[objectID][-idx:]
+
+                if len(objectDistances) > 1:
+
+                    #if the slope is a +ve value --> increasing trend
+                    #if the slope is a -ve value --> decreasing trend
+                    #if the slope is a zero value --> No trend
+                    trend = self.trendDetector(objectDistances)
+                    if (objectID in self.trends.keys()) == False:
+                        self.trends[objectID] = []
+                    elif (trend > self.trend_threshold) or (trend < -self.trend_threshold) :
+                        filtered_frame_objects.append(frameObject)
+
+                    self.trends[objectID].append(trend)
+
+        task.put('frame_objects', filtered_frame_objects)
+        return next(task)   
+    
+    def trendDetector(self, array_of_data, order=1):
+        list_of_index = np.arange(0,len(array_of_data))
+        result = np.polyfit(list_of_index, array_of_data, order)
+        slope = result[-2]
+        return float(slope)
+
+
 class CreateAverageImage(PipelineHandler):
     def __init__(self,save_image_path) -> None:
         super().__init__()
@@ -281,7 +450,7 @@ class Verbose(PipelineHandler):
 
         handledTask = next(task)
 
-        if task.has('predictions'):
+        if task.has('predictions') and task.get('predictions') != None:
             for prediction in task.get('predictions'):
                 print('\t Label: '+prediction.getLabel()+ ' Score: '+str(prediction.getScore())+' Box: '+str(prediction.getBox()))
 
@@ -348,6 +517,7 @@ class VideoWriter(PipelineHandler):
         if self.output_video:
             self.video.write(result.get('output_frame'))
         self.imageWriter(result)
+        result.put('output_frame', None)
         return result
 
     def imageWriter(self, task:VideoProcessingFrame):
@@ -399,6 +569,8 @@ class VideoPredictionVisualisation(PipelineHandler):
                     self.printText(output_frame, "Object ID: " + str(object['object_id']), (centroid[0]+10, centroid[1]))
                     self.printText(output_frame, "Velocity: " + str(round(object['world_velocity_magnitude'])), (centroid[0]+10, centroid[1] - 30))
                     self.printText(output_frame, "Bearing: " + str(round(object['frame_bearing'])), (centroid[0]+10, centroid[1] - 60))
+                    self.printText(output_frame, "D: " + str(object['distance_from_mid']), (centroid[0]+10, centroid[1] - 90))
+                    
             if self.processParam(task, 'predictions'):
                 for prediction in task.get('predictions'):
                     box = prediction.getBox()
@@ -416,7 +588,7 @@ class VideoPredictionVisualisation(PipelineHandler):
                 for bbox in bboxes:
                     p1 = (int(bbox[0]), int(bbox[1]))
                     p2 = (int(bbox[2]), int(bbox[3]))
-                    cv2.rectangle(output_frame, p1, p2, (255,0,0), 2, 1)      
+                    cv2.rectangle(output_frame, p1, p2, (255,0,0), 2, 1)                                  
             if self.processParam(task, 'frame_geo_objects'):
                 for object in task.get('frame_geo_objects'):  
                     centroid = object['pixel_centroid']
@@ -425,12 +597,21 @@ class VideoPredictionVisualisation(PipelineHandler):
                     self.printText(output_frame, "Longitude, Latitude: " + str(round(object['long_lat'][0], ndigits=2)) + ", " + str(round(object['long_lat'][1], ndigits=2)), (centroid[0]+10, centroid[1] - 30))
                     self.printText(output_frame, "Velocity: " + str(round(object['geo_velocity'])) + "m/s", (centroid[0]+10, centroid[1] - 60))
                     self.printText(output_frame, "Azimuth: " + str(round(object['forward_azimuth'])), (centroid[0]+10, centroid[1] - 90))
+            if self.processParam(task, 'stablisation_point'):
+                bbox = task.get('stablisation_point')  
+                p1 = (round(bbox[0]), round(bbox[1]))
+                p2 = (round(bbox[2]), round(bbox[3]))
+                cx = round(bbox[0] + ((bbox[2] - bbox[0]) / 2))
+                cy = round(bbox[1] + ((bbox[3] - bbox[1]) / 2))
+                centroid = [cx, cy]
+                cv2.circle(output_frame, centroid, radius=10, color=self.fontColour, thickness=-1)
+                cv2.rectangle(output_frame, p1, p2, (255,0,0), 2, 1)     
 
             task.put('output_frame', output_frame)
         return next(task)
 
     def processParam(self,task: VideoProcessingFrame, param):
-        return (len(self.include) == 0 or param in self.include) and task.has(param)
+        return (len(self.include) == 0 or param in self.include) and task.has(param) and  task.get(param) != None
 
     def printText(self,frame, text, position):
         cv2.putText(
@@ -470,7 +651,8 @@ class YoloProcessor(PipelineHandler):
         classes=None,  # filter by class: --class 0, or --class 0 2 3
         agnostic_nms=False,  # class-agnostic NMS
         half=False,  # use FP16 half-precision inference
-        skip_frames = 0
+        skip_frames = 0,
+        clean_predictions_after_frame = True
     ) -> None:
         super().__init__()
         self.device = device = select_device(device)
@@ -485,8 +667,11 @@ class YoloProcessor(PipelineHandler):
         self.half = half
         self.skip_frames = skip_frames
         self.frame_count = 0
+        self.clean_predictions_after_frame = clean_predictions_after_frame
             
     def handle(self, task: VideoProcessingFrame, next):
+        if task.frame_id > 0:
+            return next(task)
 
         if self.skip_frames > 0 and self.frame_count > 0: 
             if self.frame_count > 0 and self.frame_count <= self.skip_frames:
@@ -532,8 +717,15 @@ class YoloProcessor(PipelineHandler):
             for *xyxy, conf, cls in reversed(det):
                 c = int(cls)  # integer class
                 label = model.names[c]
-                prediction = Prediction(label, conf.item(), xyxy[0].item(), xyxy[1].item(), xyxy[2].item(), xyxy[3].item())
+                x1 = xyxy[0].item()
+                y1 = xyxy[1].item()
+                x2 = xyxy[2].item()
+                y2 = xyxy[3].item()
+                prediction = Prediction(label, conf.item(),x1,y1,x2,y2)
                 predictions.append(prediction)
 
         task.put('predictions', predictions)       
-        return next(task)  
+        result = next(task)  
+        if self.clean_predictions_after_frame:
+            task.put('predictions', None)
+        return result    
