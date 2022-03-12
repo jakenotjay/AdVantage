@@ -405,11 +405,9 @@ class MovementFilter(PipelineHandler):
                     #if the slope is a -ve value --> decreasing trend
                     #if the slope is a zero value --> No trend
                     trend = self.trendDetector(objectDistances)
-                    print('trend '+str(objectID), trend)
                     if (objectID in self.trends.keys()) == False:
                         self.trends[objectID] = []
                     elif (trend > self.trend_threshold) or (trend < -self.trend_threshold) :
-                        print('trend valid: ',objectID)
                         filtered_frame_objects.append(frameObject)
 
                     self.trends[objectID].append(trend)
