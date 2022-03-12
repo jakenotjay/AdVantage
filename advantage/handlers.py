@@ -670,7 +670,6 @@ class YoloProcessor(PipelineHandler):
         self.clean_predictions_after_frame = clean_predictions_after_frame
             
     def handle(self, task: VideoProcessingFrame, next):
-        print('taskid', task.frame_id)
         if task.frame_id > 0:
             return next(task)
 
