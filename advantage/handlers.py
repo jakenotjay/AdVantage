@@ -379,7 +379,7 @@ class MovementFilter(PipelineHandler):
     def __init__(self) -> None:
         super().__init__()
         self.frame_buffer = 5
-        self.trend_threshold = .5
+        self.trend_threshold = .4
         self.distances = {}
         self.trends = {}
 
