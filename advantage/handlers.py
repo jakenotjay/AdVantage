@@ -25,9 +25,10 @@ class ObjectTracker(PipelineHandler):
     #   'other data'
     # }
     trackedObjects = {}
-    def __init__(self) -> None:
+    def __init__(self, isolateObjectIds = []) -> None:
         super().__init__()
         self.ct = ObjectDetectionTracker()
+        self.isolateObjectIds = isolateObjectIds
 
     #Called Per Frame
     def handle(self, task: VideoProcessingFrame, next):
@@ -68,6 +69,9 @@ class ObjectTracker(PipelineHandler):
 
         # loop over the tracked objects
         for (objectID, centroid) in objects:
+            if len(self.isolateObjectIds) > 0 and (objectID in self.isolateObjectIds) == False:
+                continue
+
             if using_background_frame:
                 cxp = centroid[0] / width
                 xyp = centroid[1] / height
