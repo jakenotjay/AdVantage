@@ -17,10 +17,15 @@ class GeoObjectTracker(PipelineHandler):
     def __init__(self) -> None:
         super().__init__()
         self.ct = CentroidTracker(isGeo=True)
+
     
     # called per frame
     def handle(self, task:VideoProcessingFrame, next):
         fps = task.fps
+        ground_control_points = None
+        if task.has('gcp'):
+            ## map {longitude:0, latitude:0, x:0, y:0} x & y are top left of frame
+            ground_control_points = task.get('gcp')
 
         rects = []
 
