@@ -22,7 +22,7 @@ pipeline = app.pipeline_factory([
     BackgroundFrame(scale=80), #Creates a resized frame to process on
     StablisationDectection(bbox_size=40),
     VideoWriter(
-        os.path.join(acwd,'output',filename+'.mp4'), #Video Path to Save to if set to true
+        os.path.join(cwd,'output',filename+'.mp4'), #Video Path to Save to if set to true
         output_video=True, #Output the video
         #image_frame_output_dir=os.path.join(cwd,'output') #Outputs Image of each frame
     ),
