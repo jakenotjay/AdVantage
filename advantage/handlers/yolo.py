@@ -36,7 +36,8 @@ class YoloProcessor(PipelineHandler):
         agnostic_nms=False,  # class-agnostic NMS
         half=False,  # use FP16 half-precision inference
         skip_frames = 0,
-        clean_predictions_after_frame = True
+        clean_predictions_after_frame = True,
+        first_frame_only= False
     ) -> None:
         super().__init__()
         self.device = device = select_device(device)
@@ -52,19 +53,20 @@ class YoloProcessor(PipelineHandler):
         self.skip_frames = skip_frames
         self.frame_count = 0
         self.clean_predictions_after_frame = clean_predictions_after_frame
+        self.first_frame_only = first_frame_only
             
     def handle(self, task: VideoProcessingFrame, next):
-        if task.frame_id > 0:
+        if task.frame_id > 0 and self.first_frame_only:
             return next(task)
 
-        if self.skip_frames > 0 and self.frame_count > 0: 
-            if self.frame_count > 0 and self.frame_count <= self.skip_frames:
-                if self.frame_count >= self.skip_frames:
-                    self.frame_count = 0
-                else:
-                   self.frame_count += 1 
+        if self.skip_frames > 0 and task.frame_id > 0: 
+            if self.frame_count < self.skip_frames:
+                self.frame_count += 1
                 return next(task)
-        self.frame_count += 1         
+            else:
+                self.frame_count = 0 
+        else:
+            self.frame_count += 1            
 
         if self.imgz == None:
             self.imgz = (task.frame_width, task.frame_height)

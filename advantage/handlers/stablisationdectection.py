@@ -15,10 +15,10 @@ class StablisationDetection(PipelineHandler):
         self.y_offset = .5
         self.centroids = []
 
-    def setupTracker(self, centroid, size, frame, o_frame):
+    def setupTracker(self, coords, size, frame, o_frame):
         tracker = cv2.TrackerMIL_create()
-        xp = centroid[0] / o_frame.shape[0]
-        yp = centroid[1] / o_frame.shape[1]
+        xp = coords[0] / o_frame.shape[0]
+        yp = coords[1] / o_frame.shape[1]
         sp = size / o_frame.shape[0]
 
         s = round(frame.shape[0] * sp)
@@ -61,7 +61,6 @@ class StablisationDetection(PipelineHandler):
             cx = tbbox[0] + ((tbbox[2] - tbbox[0])/2)
             cy = tbbox[1] + ((tbbox[3] - tbbox[1])/2)
             centroid = (cx, cy)
-            
             movement = (0,0)
             movement_starting = (0,0)
             if len(self.centroids[i]) > 0:

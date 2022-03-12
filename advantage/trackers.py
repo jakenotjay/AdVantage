@@ -12,8 +12,9 @@ def _processObject(tracker, frame, objectId, boxes):
 	boxes[objectId] = bbox
 
 class ObjectDetectionTracker():
-	def __init__(self):
+	def __init__(self, offset_allowance = 10):
 		self.trackers = []
+		self.offset_allowance = offset_allowance
 
 	def init(self, frame, objects):
 		boxes = []
@@ -25,7 +26,7 @@ class ObjectDetectionTracker():
 			self.trackers.append(tracker)
 		return self.boxesToCentroids(boxes)
 
-	def update(self, frame):
+	def update(self, frame, objects = None):
 		boxes = [None] * (len(self.trackers)) 
 		threads = [None] * (len(self.trackers)) 
 		for objectId, tracker in enumerate(self.trackers):
@@ -34,6 +35,11 @@ class ObjectDetectionTracker():
 
 		for i in range(len(threads)):
 			threads[i].join()	
+
+		if objects != None:
+			newBoxes = self.handleNewBoxes(boxes, objects, frame)	
+			for box in newBoxes:
+				boxes.append(box)
 
 		return self.boxesToCentroids(boxes)
 
@@ -47,6 +53,28 @@ class ObjectDetectionTracker():
 
 	def boxToROI(self,box):
 		return (box[0],box[1],(box[2] - box[0]),(box[3] - box[1]))	
+
+	def handleNewBoxes(self, boxes, objects, frame):
+		toAddBoxes = []
+		for box in objects:
+			roi = self.boxToROI(box)
+			trackingCentroid = False
+			for cc in boxes:
+				x_offset = abs(roi[0] - cc[0])
+				y_offset = abs(roi[1] - cc[1])
+				if x_offset < self.offset_allowance and y_offset < self.offset_allowance:
+					trackingCentroid = True
+					continue
+			if trackingCentroid == False:
+				print('adding new point')
+				tracker = cv2.TrackerMIL_create()
+				box = self.boxToROI(box)
+				#print(box)
+				toAddBoxes.append(box)
+				tracker.init(frame, box)
+				self.trackers.append(tracker)
+
+		return toAddBoxes
 
 
 class CentroidTracker():

@@ -2,7 +2,6 @@ from re import M
 import cv2
 from ..pipeline import PipelineHandler
 from ..sendables import VideoProcessingFrame
-from ..trackers import ObjectDetectionTracker
 import numpy as np
 import math    
 
@@ -17,11 +16,12 @@ class ObjectTracker(PipelineHandler):
     #   'other data'
     # }
     trackedObjects = {}
-    def __init__(self, isolateObjectIds = [], sanity_lines= False) -> None:
+    def __init__(self,tracker, isolateObjectIds = [], sanity_lines= False) -> None:
         super().__init__()
-        self.ct = ObjectDetectionTracker()
+        self.ct = tracker
         self.isolateObjectIds = isolateObjectIds
         self.sanity_lines = sanity_lines
+        self.has_setup_trackers = False
 
     #Called Per Frame
     def handle(self, task: VideoProcessingFrame, next):
@@ -51,8 +51,13 @@ class ObjectTracker(PipelineHandler):
                     x2p = box[2] / o_width
                     y2p = box[3] / o_height
                     box = [round(width * x1p), round(height * y1p), round(width * x2p), round(height * y2p)]
-                boxes.append(box)      
-            objects = self.ct.init(frame,boxes)
+                boxes.append(box) 
+            if self.has_setup_trackers:
+                print('update trackers')
+                objects = self.ct.update(frame, boxes)  
+            else:          
+                objects = self.ct.init(frame,boxes)
+                self.has_setup_trackers = True
         else:
             objects = self.ct.update(frame)    
 

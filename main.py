@@ -16,6 +16,7 @@ from advantage.handlers.visulisation import VideoPredictionVisualisation
 from advantage.handlers.pipelinekiller import PipelineKiller
 from advantage.handlers.geodata import VideoAttachGeoData
 from advantage.handlers.geotracker import GeoObjectTracker
+from advantage.trackers import ObjectDetectionTracker
 
 app = AdVantage()
 cwd = os.path.dirname(os.path.abspath(__file__))
@@ -37,11 +38,12 @@ pipeline = app.pipeline_factory([
         #image_frame_output_dir=os.path.join(cwd,'output') #Outputs Image of each frame
     ),
     YoloProcessor(
-       os.path.join(cwd,'input/exp3/best.pt'), #weights file. must be absolute
-       conf_thres=0.7, #only save predictions over % 0 to 1
+       os.path.join(cwd,'input/exp23/best.pt'), #weights file. must be absolute
+       conf_thres=0.7, #only save predictions over % 0 to 1,
+       skip_frames=10
     ), 
-    ObjectTracker(isolateObjectIds=[], sanity_lines=True), #nice ones to check 9,8,11,1
-    MovementFilter(),
+    ObjectTracker(ObjectDetectionTracker(offset_allowance=10), isolateObjectIds=[], sanity_lines=True), #nice ones to check 9,8,11,1
+    #MovementFilter(),
     #VideoAttachGeoData('input/VX020001c0_geometry.xml'), #Attach geo data to frame
     VideoPredictionVisualisation(include=['frame_objects','stablisation_points']), # Applies details to video/image frames
 ])
