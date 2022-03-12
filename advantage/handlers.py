@@ -396,8 +396,8 @@ class MovementFilter(PipelineHandler):
                 self.distances[objectID].append(frameObject['distance_from_mid'])   
                 objectDistances = self.distances[objectID]  
 
-                idx = min(self.frame_buffer, len(self.distances[objectID] ))
-                objectDistances = self.distances[objectID][-idx:]
+                #idx = min(self.frame_buffer, len(self.distances[objectID] ))
+                #objectDistances = self.distances[objectID][-idx:]
 
                 if len(objectDistances) > 1:
 
