@@ -13,6 +13,9 @@ from advantage.handlers.videowriter import VideoWriter
 from advantage.handlers.yolo import YoloProcessor
 from advantage.handlers.movementfilter import MovementFilter
 from advantage.handlers.visulisation import VideoPredictionVisualisation
+from advantage.handlers.pipelinekiller import PipelineKiller
+from advantage.handlers.geodata import VideoAttachGeoData
+from advantage.handlers.geotracker import GeoObjectTracker
 
 app = AdVantage()
 cwd = os.path.dirname(os.path.abspath(__file__))
@@ -40,7 +43,6 @@ pipeline = app.pipeline_factory([
     ObjectTracker(isolateObjectIds=[], sanity_lines=True), #nice ones to check 9,8,11,1
     MovementFilter(),
     #VideoAttachGeoData('input/VX020001c0_geometry.xml'), #Attach geo data to frame
-    #RunwayDetector(output_test_images=False),
     VideoPredictionVisualisation(include=['frame_objects','stablisation_points']), # Applies details to video/image frames
 ])
 

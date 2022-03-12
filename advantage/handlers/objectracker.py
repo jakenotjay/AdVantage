@@ -71,23 +71,25 @@ class ObjectTracker(PipelineHandler):
                 centroid = [round(cxp * o_width), round(xyp * o_height)]
 
             object_dict = {}
-            distance_from_mid = 0
-            if has_stablisation and self.sanity_lines:
+            stablisation_distances = []
+            if has_stablisation:
                 sps = task.get('stablisation')
                 for sp in sps:
                     xo = sp['centroid'][0] - centroid[0]
                     yo = sp['centroid'][1] - centroid[1]
-                    distance_from_mid = math.sqrt(math.pow(xo,2) + math.pow(yo,2))
+                    d = math.sqrt(math.pow(xo,2) + math.pow(yo,2))
+                    stablisation_distances.append(d)
                     if task.has('output_frame'):
                         output_frame = task.get('output_frame')
                         #draw a santity line
-                        cv2.line(
-                            output_frame, 
-                            [round(sp['centroid'][0]), round(sp['centroid'][1])], 
-                            [round(centroid[0]), round(centroid[1])],
-                            (0,255,0), 
-                            2
-                        )
+                        if self.sanity_lines:
+                            cv2.line(
+                                output_frame, 
+                                [round(sp['centroid'][0]), round(sp['centroid'][1])], 
+                                [round(centroid[0]), round(centroid[1])],
+                                (0,255,0), 
+                                2
+                            )
 
             if objectID in self.trackedObjects:
                 # for object ID get the last frame
@@ -118,7 +120,7 @@ class ObjectTracker(PipelineHandler):
 
                 object_dict = {
                     'centroid': centroid,
-                    'distance_from_mid':distance_from_mid,
+                    'stablisation_distances':stablisation_distances,
                     'frame_velocity': frame_velocity,
                     'frame_velocity_magnitude': frame_velocity_magnitude,
                     'frame_acceleration': frame_acceleration,
@@ -135,7 +137,7 @@ class ObjectTracker(PipelineHandler):
             else:
                 object_dict = {
                     'centroid': centroid,
-                    'distance_from_mid':distance_from_mid,
+                    'stablisation_distances':stablisation_distances,
                     'frame_velocity': [0, 0],
                     'frame_velocity_magnitude': 0,
                     'frame_acceleration': [0, 0],

@@ -41,7 +41,7 @@ class VideoPredictionVisualisation(PipelineHandler):
                     self.printText(output_frame, "Object ID: " + str(object['object_id']), (centroid[0]+10, centroid[1]))
                     self.printText(output_frame, "Velocity: " + str(round(object['world_velocity_magnitude'])), (centroid[0]+10, centroid[1] - 30))
                     self.printText(output_frame, "Bearing: " + str(round(object['frame_bearing'])), (centroid[0]+10, centroid[1] - 60))
-                    self.printText(output_frame, "D: " + str(object['distance_from_mid']), (centroid[0]+10, centroid[1] - 90))
+                    #self.printText(output_frame, "D: " + str(object['distance_from_mid']), (centroid[0]+10, centroid[1] - 90))
                     
             if self.processParam(task, 'predictions'):
                 for prediction in task.get('predictions'):

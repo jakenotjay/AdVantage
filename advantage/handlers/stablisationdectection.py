@@ -3,6 +3,7 @@ import cv2
 from ..pipeline import PipelineHandler
 from ..sendables import VideoProcessingFrame
 
+
 class StablisationDetection(PipelineHandler):  
     def __init__(self, bbox_size = 40) -> None:
         super().__init__()
@@ -43,8 +44,8 @@ class StablisationDetection(PipelineHandler):
                     self.setupTracker([point['x'],point['y']], point['size'], frame, task.frame)
                     self.centroids.append([])
             else:
-                cx = task.frame[0] * self.x_offset
-                cy = task.frame[1] * self.y_offset      
+                cx = task.frame.shape[0] * self.x_offset
+                cy = task.frame.shape[1] * self.y_offset      
                 self.setupTracker([cx, cy], self.bbox_size, frame, task.frame)
                 self.centroids.append([])
         else:
