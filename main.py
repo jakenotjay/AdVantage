@@ -30,7 +30,7 @@ pipeline = app.pipeline_factory([
        os.path.join(cwd,'input/exp3/best.pt'), #weights file. must be absolute
        conf_thres=0.7, #only save predictions over % 0 to 1
     ), 
-    ObjectTracker(isolateObjectIds=[1,9]),
+    ObjectTracker(isolateObjectIds=[]),
     MovementFilter(),
     #RunwayDetector(output_test_images=False),
     VideoPredictionVisualisation(include=['frame_objects','stablisation_point']), # Applies details to video/image frames

@@ -396,21 +396,32 @@ class MovementFilter(PipelineHandler):
                 self.distances[objectID].append(frameObject['distance_from_mid'])   
                 objectDistances = self.distances[objectID]  
 
-                if len(objectDistances) > 1:
-                    x = np.arange(0,len(objectDistances))
-                    y=np.array(objectDistances)
-                    z = np.polyfit(x,y,1)
-                    trend = z[1]
+                idx = min(self.frame_buffer, len(self.distances[objectID] ))
+                objectDistances = self.distances[objectID][-idx:]
 
+                if len(objectDistances) > 1:
+
+                    #if the slope is a +ve value --> increasing trend
+                    #if the slope is a -ve value --> decreasing trend
+                    #if the slope is a zero value --> No trend
+                    trend = self.trendDetector(objectDistances)
+                    print('trend '+str(objectID), trend)
                     if (objectID in self.trends.keys()) == False:
                         self.trends[objectID] = []
-                    elif trend > self.trends[objectID][-1]:
-                        task.put('frame_objects', filtered_frame_objects)
+                    elif (trend > 0.5) or (trend < -0.5) :
+                        print('trend valid: ',objectID)
+                        filtered_frame_objects.append(frameObject)
 
                     self.trends[objectID].append(trend)
-            
+
+        task.put('frame_objects', filtered_frame_objects)
         return next(task)   
     
+    def trendDetector(self, array_of_data, order=1):
+        list_of_index = np.arange(0,len(array_of_data))
+        result = np.polyfit(list_of_index, array_of_data, order)
+        slope = result[-2]
+        return float(slope)
 
 
 class CreateAverageImage(PipelineHandler):
