@@ -1,5 +1,5 @@
-from .pipeline import PipelineHandler
-from .app import VideoProcessingFrame
+from ..pipeline import PipelineHandler
+from ..app import VideoProcessingFrame
 import cv2
 import math
 import numpy as np
