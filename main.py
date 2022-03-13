@@ -45,7 +45,8 @@ pipeline = app.pipeline_factory([
     YoloProcessor(
        os.path.join(cwd,'input/exp23/best.pt'), #weights file. must be absolute
        conf_thres=0.8, #only save predictions over % 0 to 1,
-       skip_frames=10
+       #skip_frames=10
+       first_frame_only=True
     ), 
     ObjectTracker(ObjectDetectionTracker(offset_allowance=10, track_limit=10), isolateObjectIds=[], sanity_lines=True),
     #MovementFilter(),
