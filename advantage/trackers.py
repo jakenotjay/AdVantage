@@ -12,13 +12,14 @@ def _processObject(tracker, frame, objectId, boxes):
 	boxes[objectId] = bbox
 
 class ObjectDetectionTracker():
-	def __init__(self, offset_allowance = 10):
+	def __init__(self, offset_allowance = 10, track_limit = 1000):
 		self.trackers = []
 		self.offset_allowance = offset_allowance
+		self.track_limit = track_limit
 
 	def init(self, frame, objects):
 		boxes = []
-		for object in objects:
+		for object in objects[-self.track_limit:]:
 			tracker = cv2.TrackerMIL_create()
 			box = self.boxToROI(object)
 			boxes.append(box)
@@ -73,7 +74,7 @@ class ObjectDetectionTracker():
 				toAddBoxes.append(box)
 				tracker.init(frame, box)
 				self.trackers.append(tracker)
-
+		self.trackers = self.trackers[-self.track_limit:]
 		return toAddBoxes
 
 
