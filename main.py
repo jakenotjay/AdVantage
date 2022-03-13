@@ -24,12 +24,17 @@ cwd = os.path.dirname(os.path.abspath(__file__))
 #filename = 'VX0200021f'
 filename = 'VX020001c0'
 #filename = 'VX020001c0_stable'
+#filename = 'VX020001af'
+#filename = 'VX02000399'
+#filename = 'VX020003b5'
+#filename = 'VX020003a0'
+#filename = 'VX020003b9'
 
 
 pipeline = app.pipeline_factory([
     Verbose(), #Prints information to console
     #PipelineKiller(frames_to_process = 1), #kills process after x frames
-    GroundControlPoints(), #hard coded for VX020001c0 frame 1
+    #GroundControlPoints(), #hard coded for VX020001c0 frame 1
     BackgroundFrame(scale=80), #Creates a resized frame to process on
     StablisationDetection(bbox_size=100),
     VideoWriter(
@@ -42,10 +47,10 @@ pipeline = app.pipeline_factory([
        conf_thres=0.8, #only save predictions over % 0 to 1,
        skip_frames=10
     ), 
-    ObjectTracker(ObjectDetectionTracker(offset_allowance=10), isolateObjectIds=[], sanity_lines=True),
-    MovementFilter(),
+    ObjectTracker(ObjectDetectionTracker(offset_allowance=10, track_limit=10), isolateObjectIds=[], sanity_lines=True),
+    #MovementFilter(),
     #VideoAttachGeoData('input/VX020001c0_geometry.xml'), #Attach geo data to frame
-    VideoPredictionVisualisation(include=['frame_objects','stablisation_points']), # Applies details to video/image frames
+    VideoPredictionVisualisation(include=['frame_objects']), # Applies details to video/image frames
 ])
 
 result = app.process_video(os.path.join(cwd,'input',filename+'.mp4'), pipeline)

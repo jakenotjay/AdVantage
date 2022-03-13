@@ -78,7 +78,7 @@ class YoloProcessor(PipelineHandler):
             if self.model.pt or self.model.jit:
                 self.model.model.half() if self.half else self.model.model.float()
 
-            self.model.warmup(imgsz=(1 if self.model.pt else 1, 3, *imgz), half=self.half)  # warmup
+            self.model.warmup(imgsz=(1 if self.model.pt else 1, 3, *imgz))  # warmup
        
         if imgz[0] != task.frame_width and imgz[1] != task.frame_height:
             img = letterbox(task.frame, imgz, stride=self.stride, auto=True)[0]
