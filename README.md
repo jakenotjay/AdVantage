@@ -1,4 +1,5 @@
-# AdVantage - Winner of the Earth-i Vantage coding challenge #2
+# AdVantage - Winner of the Earth-i Vantage coding [challenge #2](https://www.linkedin.com/feed/update/urn:li:activity:6910633871520727040/)
+
 
 Instructions for running the platform can be found in main.ipynb.
 
